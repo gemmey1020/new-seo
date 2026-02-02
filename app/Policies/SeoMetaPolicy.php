@@ -1,0 +1,33 @@
+<?php
+
+namespace App\Policies;
+
+use App\Models\Auth\User;
+use App\Models\Seo\SeoMeta;
+use App\Models\Auth\Role;
+
+class SeoMetaPolicy
+{
+    public function view(User $user, SeoMeta $meta): bool
+    {
+        return $this->isMember($user, $meta->page->site_id);
+    }
+
+    public function update(User $user, SeoMeta $meta): bool
+    {
+        return $this->hasRole($user, $meta->page->site_id, ['admin', 'seo_editor']);
+    }
+
+    protected function isMember(User $user, int $siteId): bool
+    {
+        return $user->siteUsers()->where('site_id', $siteId)->exists();
+    }
+
+    protected function hasRole(User $user, int $siteId, array $allowedRoles): bool
+    {
+        $membership = $user->siteUsers()->where('site_id', $siteId)->first();
+        if (!$membership) return false;
+        $role = Role::find($membership->role_id);
+        return $role && in_array($role->name, $allowedRoles);
+    }
+}
