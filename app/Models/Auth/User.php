@@ -15,20 +15,15 @@ use App\Models\Audit\SeoAudit;
 use App\Models\Workflow\SeoTask;
 use App\Models\Workflow\SeoTaskComment;
 
+use Laravel\Sanctum\HasApiTokens;
+
 /**
  * Class User
- * 
- * @property int $id
- * @property string $name
- * @property string $email
- * @property string $password
- * @property bool $is_active
- * @property \Illuminate\Support\Carbon|null $last_login_at
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
+ * ...
  */
 class User extends Authenticatable
 {
+    use HasApiTokens;
     /**
      * The table associated with the model.
      *

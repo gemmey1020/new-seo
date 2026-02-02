@@ -3,26 +3,50 @@
 @section('content')
 <div class="flex items-center justify-between">
     <h1 class="text-2xl font-semibold text-gray-900">Overview</h1>
-    <div id="health-score-badge" class="rounded-full bg-gray-200 px-4 py-1 text-sm font-bold">Health: --</div>
+    <!-- Health Score Badge (v1.1) -->
+    <div id="health-score-container" class="hidden flex items-center gap-2">
+        <span class="text-xs text-gray-500 uppercase tracking-wider">Health Score</span>
+        <div id="health-score-badge" class="flex items-center justify-center rounded-full bg-gray-200 px-4 py-1 text-lg font-bold shadow-sm">
+            --
+        </div>
+        <div id="health-grade-badge" class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-600 text-sm font-bold text-white shadow-sm">
+            -
+        </div>
+    </div>
 </div>
 
-<div class="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-    <!-- Stat Cards -->
-    <div class="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6">
-        <dt class="truncate text-sm font-medium text-gray-500">Total Pages</dt>
-        <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900" id="stat-total-pages">-</dd>
+<!-- v1.1 Intelligence Grid -->
+<div class="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-3">
+    
+    <!-- 1. Stability & Compliance -->
+    <div class="rounded-lg bg-white shadow">
+        <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
+            <h3 class="text-base font-semibold leading-6 text-gray-900">Health Dimensions</h3>
+        </div>
+        <div class="px-4 py-5 sm:p-6 space-y-4" id="dimensions-container">
+            <div class="text-sm text-gray-500">Loading intelligence...</div>
+        </div>
     </div>
-    <div class="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6">
-        <dt class="truncate text-sm font-medium text-gray-500">Open Audits</dt>
-        <dd class="mt-1 text-3xl font-semibold tracking-tight text-red-600" id="stat-open-audits">-</dd>
+
+    <!-- 2. Drift Monitor (v1.1) -->
+    <div class="rounded-lg bg-white shadow">
+         <div class="border-b border-gray-200 px-4 py-4 sm:px-6 flex justify-between items-center">
+            <h3 class="text-base font-semibold leading-6 text-gray-900">Drift Monitor</h3>
+            <span id="drift-status-badge" class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">Checking...</span>
+        </div>
+        <div class="px-4 py-5 sm:p-6" id="drift-container">
+             <div class="text-sm text-gray-500">Comparing Sitemap vs Reality...</div>
+        </div>
     </div>
-    <div class="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6">
-        <dt class="truncate text-sm font-medium text-gray-500">Crawled Pages</dt>
-        <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900" id="stat-crawled-pages">-</dd>
-    </div>
-    <div class="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6">
-        <dt class="truncate text-sm font-medium text-gray-500">Pending Tasks</dt>
-        <dd class="mt-1 text-3xl font-semibold tracking-tight text-yellow-600" id="stat-pending-tasks">-</dd>
+
+    <!-- 3. Readiness Verdict (v1.1) -->
+    <div class="rounded-lg bg-white shadow bg-gradient-to-br from-white to-gray-50">
+        <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
+            <h3 class="text-base font-semibold leading-6 text-gray-900">Authority Readiness</h3>
+        </div>
+        <div class="px-4 py-5 sm:p-6" id="readiness-container">
+             <div class="text-sm text-gray-500">Evaluating...</div>
+        </div>
     </div>
 </div>
 
@@ -56,83 +80,174 @@
 @push('scripts')
 <script>
     async function loadDashboard() {
-        // Parallel fetch for density
-        const [pages, audits, tasks, crawlRuns] = await Promise.all([
-            api(`/sites/${SITE_ID}/pages?per_page=1`), // Just to get total
-            api(`/sites/${SITE_ID}/audits?per_page=5`), // Recent
-            api(`/sites/${SITE_ID}/tasks?per_page=1`), // Count logic (pseudo)
-            api(`/sites/${SITE_ID}/crawl/runs?per_page=1`) // Latest
+        const [health, drift, readiness, audits, crawlRuns] = await Promise.all([
+            api(`/sites/${SITE_ID}/health`),     // v1.1
+            api(`/sites/${SITE_ID}/health/drift`), // v1.1
+            api(`/sites/${SITE_ID}/health/readiness`), // v1.1
+            api(`/sites/${SITE_ID}/audits?per_page=5`),
+            api(`/sites/${SITE_ID}/crawl/runs?per_page=1`) 
         ]);
 
-        // Stats
-        document.getElementById('stat-total-pages').textContent = pages.total;
-        document.getElementById('stat-open-audits').textContent = audits.total; // Rough proxy for open
-        // Task count (need real stats endpoint in future, using total list for MVP)
-        document.getElementById('stat-pending-tasks').textContent = tasks.total;
+        renderHealth(health);
+        renderDrift(drift);
+        renderReadiness(readiness);
+        renderAudits(audits);
+        renderCrawl(crawlRuns);
+    }
 
-        // Audits List
+    function renderHealth(data) {
+        // Badge
+        document.getElementById('health-score-container').classList.remove('hidden');
+        const scoreBadge = document.getElementById('health-score-badge');
+        const gradeBadge = document.getElementById('health-grade-badge');
+        
+        scoreBadge.textContent = data.score;
+        gradeBadge.textContent = data.grade;
+
+        // Color Logic
+        let colorClass = 'bg-red-100 text-red-800';
+        if(data.score >= 90) colorClass = 'bg-green-100 text-green-800';
+        else if(data.score >= 70) colorClass = 'bg-yellow-100 text-yellow-800';
+        
+        scoreBadge.className = `flex items-center justify-center rounded-full px-4 py-1 text-lg font-bold shadow-sm ${colorClass}`;
+
+        // Dimensions breakdown
+        const dim = data.dimensions;
+        document.getElementById('dimensions-container').innerHTML = `
+            <div class="grid grid-cols-2 gap-4">
+                <div class="p-3 bg-gray-50 rounded border border-gray-100">
+                    <div class="text-xs text-gray-500 uppercase">Stability</div>
+                    <div class="text-xl font-bold ${dim.stability.score < 70 ? 'text-red-600' : 'text-gray-900'}">${dim.stability.score}</div>
+                    <div class="text-xs text-gray-400">Success Rate: ${(dim.stability.metrics.success_rate * 100).toFixed(0)}%</div>
+                </div>
+                <div class="p-3 bg-gray-50 rounded border border-gray-100">
+                    <div class="text-xs text-gray-500 uppercase">Compliance</div>
+                    <div class="text-xl font-bold ${dim.compliance.score < 70 ? 'text-red-600' : 'text-gray-900'}">${dim.compliance.score}</div>
+                    <div class="text-xs text-gray-400">Critical: ${dim.compliance.metrics.critical_audits}</div>
+                </div>
+                <div class="p-3 bg-gray-50 rounded border border-gray-100">
+                    <div class="text-xs text-gray-500 uppercase">Metadata</div>
+                    <div class="text-xl font-bold ${dim.metadata.score < 70 ? 'text-red-600' : 'text-gray-900'}">${dim.metadata.score}</div>
+                    <div class="text-xs text-gray-400">Density: ${(dim.metadata.metrics.density_rate * 100).toFixed(0)}%</div>
+                </div>
+                <div class="p-3 bg-gray-50 rounded border border-gray-100">
+                    <div class="text-xs text-gray-500 uppercase">Structure</div>
+                    <div class="text-xl font-bold ${dim.structure.score < 70 ? 'text-red-600' : 'text-gray-900'}">${dim.structure.score}</div>
+                    <div class="text-xs text-gray-400">Orphans: ${(dim.structure.metrics.orphan_rate * 100).toFixed(0)}%</div>
+                </div>
+            </div>
+            <div class="text-right text-xs text-gray-400 pt-2">Generated: ${new Date(data.generated_at).toLocaleTimeString()}</div>
+        `;
+    }
+
+    function renderDrift(data) {
+        const badge = document.getElementById('drift-status-badge');
+        badge.textContent = data.status;
+        
+        let color = 'bg-gray-100 text-gray-600';
+        if(data.status === 'CRITICAL') color = 'bg-red-100 text-red-800';
+        else if(data.status === 'DRIFTING') color = 'bg-yellow-100 text-yellow-800';
+        else color = 'bg-green-100 text-green-800';
+        
+        badge.className = `inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${color}`;
+
+        const inds = data.indicators;
+        document.getElementById('drift-container').innerHTML = `
+            <dl class="space-y-3">
+                <div class="flex justify-between items-center">
+                    <dt class="text-sm font-medium text-gray-500">Ghost Pages (404s)</dt>
+                    <dd class="text-sm font-bold ${inds.ghost.severity === 'CRITICAL' ? 'text-red-600' : 'text-gray-900'}">
+                        ${inds.ghost.count}
+                    </dd>
+                </div>
+                 <div class="flex justify-between items-center">
+                    <dt class="text-sm font-medium text-gray-500">Zombie Pages (Orphans)</dt>
+                    <dd class="text-sm font-bold ${inds.zombie.severity === 'WARNING' ? 'text-yellow-600' : 'text-gray-900'}">
+                        ${inds.zombie.count}
+                    </dd>
+                </div>
+            </dl>
+            <div class="mt-4 p-2 bg-blue-50 text-blue-800 text-xs rounded">
+                <strong>Drift:</strong> The gap between your Sitemap (Intent) and Reality (Crawl).
+            </div>
+        `;
+    }
+
+    function renderReadiness(data) {
+        const container = document.getElementById('readiness-container');
+        if(data.ready) {
+             container.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-2 text-center">
+                    <svg class="h-10 w-10 text-green-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <h4 class="text-lg font-bold text-gray-900">System Ready</h4>
+                    <p class="text-sm text-gray-500">Authority Mode available.</p>
+                </div>
+            `;
+        } else {
+             const blockers = data.blockers.map(b => `<li class="text-red-700">${b}</li>`).join('');
+             container.innerHTML = `
+                <div class="bg-red-50 border-l-4 border-red-400 p-4">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                             <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-red-800">Not Ready for v2</h3>
+                            <div class="mt-2 text-sm text-red-700">
+                                <ul class="list-disc pl-5 space-y-1">
+                                    ${blockers}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    function renderAudits(audits) {
         const auditContainer = document.getElementById('recent-audits-list');
         if (audits.data.length) {
             let html = '';
             audits.data.forEach(audit => {
-                html += `<li class="flex justify-between border-b pb-2 last:border-0">
-                            <span class="font-medium text-red-600">[${audit.severity}]</span>
-                            <span class="truncate ml-2 text-gray-700 flex-1">${audit.description || 'Issue detected'}</span>
+                html += `<li class="flex justify-between border-b pb-2 last:border-0 items-start">
+                            <span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800 uppercase">${audit.severity}</span>
+                            <span class="ml-3 text-sm text-gray-700 flex-1 truncate" title="${audit.description}">${audit.description || 'Issue detected'}</span>
                          </li>`;
             });
             auditContainer.innerHTML = html;
         } else {
-            auditContainer.innerHTML = '<li class="text-green-600">No recent issues found.</li>';
+            auditContainer.innerHTML = '<li class="text-green-600 text-sm">No recent critical issues found.</li>';
         }
+    }
 
-        // Crawl Status
+    function renderCrawl(crawlRuns) {
         const crawlBox = document.getElementById('crawl-status-box');
-        if (crawlRuns.data.length) {
+         if (crawlRuns.data.length) {
             const run = crawlRuns.data[0];
-            document.getElementById('stat-crawled-pages').textContent = run.pages_crawled;
-            
             crawlBox.innerHTML = `
                 <dl class="grid grid-cols-2 gap-4">
-                    <div><dt class="text-xs text-gray-500">Status</dt><dd class="font-bold">${run.status}</dd></div>
-                    <div><dt class="text-xs text-gray-500">Mode</dt><dd>${run.mode}</dd></div>
-                    <div><dt class="text-xs text-gray-500">Pages</dt><dd>${run.pages_crawled}</dd></div>
-                    <div><dt class="text-xs text-gray-500">Errors</dt><dd class="text-red-500">${run.errors_count}</dd></div>
-                    <div class="col-span-2"><dt class="text-xs text-gray-500">Last Run</dt><dd>${new Date(run.started_at).toLocaleString()}</dd></div>
+                    <div><dt class="text-xs text-gray-500">Status</dt><dd class="font-bold text-sm">${run.status}</dd></div>
+                    <div><dt class="text-xs text-gray-500">Mode</dt><dd class="text-sm">${run.mode}</dd></div>
+                    <div><dt class="text-xs text-gray-500">Pages</dt><dd class="text-sm font-mono">${run.pages_crawled}</dd></div>
+                    <div><dt class="text-xs text-gray-500">Errors</dt><dd class="text-sm font-mono text-red-600">${run.errors_count}</dd></div>
+                    <div class="col-span-2"><dt class="text-xs text-gray-500">Last Run</dt><dd class="text-sm">${new Date(run.started_at).toLocaleString()}</dd></div>
                 </dl>
                 <div class="mt-4">
-                     <button onclick="triggerCrawl()" class="inline-flex items-center rounded bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500">Run New Crawl</button>
+                     <a href="{{ route('sites.crawl.index', request()->route('site')) }}" class="text-sm font-medium text-blue-600 hover:text-blue-500">View crawl details &rarr;</a>
                 </div>
             `;
         } else {
             crawlBox.innerHTML = `
-                <p class="text-gray-500">No crawl history.</p>
+                <p class="text-sm text-gray-500">No crawl history.</p>
                 <div class="mt-4">
-                     <button onclick="triggerCrawl()" class="inline-flex items-center rounded bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500">Start First Crawl</button>
+                     <span class="text-sm text-gray-400">Go to Crawl Manager to start.</span>
                 </div>
             `;
-             document.getElementById('stat-crawled-pages').textContent = "0";
         }
-        
-        // Dummy Health Score Calculation (MVP)
-        let score = 100 - (audits.total * 2); // Simple calc
-        if(score < 0) score = 0;
-        const hb = document.getElementById('health-score-badge');
-        hb.textContent = `Health: ${score}`;
-        if(score > 80) hb.classList.add('bg-green-100', 'text-green-800');
-        else if(score > 50) hb.classList.add('bg-yellow-100', 'text-yellow-800');
-        else hb.classList.add('bg-red-100', 'text-red-800');
     }
 
-    async function triggerCrawl() {
-        if(!confirm('Start a new crawl?')) return;
-        try {
-            await api(`/sites/${SITE_ID}/crawl/run`, 'POST');
-            alert('Crawl started!');
-            loadDashboard(); // Refresh
-        } catch(e) {
-            alert('Failed to start crawl.');
-        }
-    }
+
 
     loadDashboard();
 </script>

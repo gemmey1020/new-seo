@@ -66,6 +66,11 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
         Route::get('/links', [LinkController::class, 'index']);
         Route::get('/links/orphans', [LinkController::class, 'orphans']);
 
+        // Health & Readiness (v1.1)
+        Route::get('/health', [App\Http\Controllers\Api\V1\HealthController::class, 'show']);
+        Route::get('/health/drift', [App\Http\Controllers\Api\V1\HealthController::class, 'drift']);
+        Route::get('/health/readiness', [App\Http\Controllers\Api\V1\HealthController::class, 'readiness']);
+
         // Tasks
         Route::get('/tasks', [TaskController::class, 'index']);
         Route::post('/tasks', [TaskController::class, 'store']);
