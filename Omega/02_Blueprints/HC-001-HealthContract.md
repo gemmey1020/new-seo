@@ -1,7 +1,8 @@
 # HC-001: Health Contract (v1.1)
 
-**Status:** APPROVED
+**Status:** FROZEN (v1.1)
 **Type:** API & Service Contract
+**Context:** v1.1 Intelligence Layer (Legacy Base)
 **Context:** v1.1 Intelligence Layer
 
 ## 1. Overview

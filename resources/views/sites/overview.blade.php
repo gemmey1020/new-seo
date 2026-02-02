@@ -111,14 +111,28 @@
         
         scoreBadge.className = `flex items-center justify-center rounded-full px-4 py-1 text-lg font-bold shadow-sm ${colorClass}`;
 
-        // Dimensions breakdown
+        // Dimensions breakdown (v1.2 Enhanced)
         const dim = data.dimensions;
+        
+        // History Bars
+        let historyHtml = '';
+        if (data.history && data.history.length) {
+            historyHtml = `<div class="mt-4 pt-4 border-t border-gray-100"><div class="text-xs text-gray-400 mb-1">Stability Trend (Last 5 Runs)</div><div class="flex items-end gap-1 h-8">`;
+            data.history.reverse().forEach(run => {
+                let h = Math.max(10, (run.score / 100) * 32); 
+                let col = run.score >= 70 ? 'bg-green-300' : 'bg-red-300';
+                historyHtml += `<div class="w-4 ${col} rounded-t" style="height:${h}px" title="${new Date(run.date).toLocaleDateString()}: ${run.score}"></div>`;
+            });
+            historyHtml += `</div></div>`;
+        }
+
         document.getElementById('dimensions-container').innerHTML = `
             <div class="grid grid-cols-2 gap-4">
                 <div class="p-3 bg-gray-50 rounded border border-gray-100">
                     <div class="text-xs text-gray-500 uppercase">Stability</div>
                     <div class="text-xl font-bold ${dim.stability.score < 70 ? 'text-red-600' : 'text-gray-900'}">${dim.stability.score}</div>
-                    <div class="text-xs text-gray-400">Success Rate: ${(dim.stability.metrics.success_rate * 100).toFixed(0)}%</div>
+                    <div class="text-xs text-gray-400">Success: ${(dim.stability.metrics.success_rate * 100).toFixed(0)}%</div>
+                    <div class="text-xs text-gray-400">Latency: ${dim.stability.metrics.latency_avg_ms}ms</div>
                 </div>
                 <div class="p-3 bg-gray-50 rounded border border-gray-100">
                     <div class="text-xs text-gray-500 uppercase">Compliance</div>
@@ -136,6 +150,7 @@
                     <div class="text-xs text-gray-400">Orphans: ${(dim.structure.metrics.orphan_rate * 100).toFixed(0)}%</div>
                 </div>
             </div>
+            ${historyHtml}
             <div class="text-right text-xs text-gray-400 pt-2">Generated: ${new Date(data.generated_at).toLocaleTimeString()}</div>
         `;
     }
@@ -152,6 +167,20 @@
         badge.className = `inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${color}`;
 
         const inds = data.indicators;
+        
+        // v1.2 State Drift
+        let stateDriftHtml = '';
+        if (inds.state) {
+            stateDriftHtml = `
+                <div class="flex justify-between items-center">
+                    <dt class="text-sm font-medium text-gray-500">State Drift (HTTP!=200)</dt>
+                    <dd class="text-sm font-bold ${inds.state.severity === 'SAFE' ? 'text-gray-900' : 'text-red-600'}">
+                        ${inds.state.count}
+                    </dd>
+                </div>
+            `;
+        }
+
         document.getElementById('drift-container').innerHTML = `
             <dl class="space-y-3">
                 <div class="flex justify-between items-center">
@@ -160,6 +189,7 @@
                         ${inds.ghost.count}
                     </dd>
                 </div>
+                ${stateDriftHtml}
                  <div class="flex justify-between items-center">
                     <dt class="text-sm font-medium text-gray-500">Zombie Pages (Orphans)</dt>
                     <dd class="text-sm font-bold ${inds.zombie.severity === 'WARNING' ? 'text-yellow-600' : 'text-gray-900'}">
