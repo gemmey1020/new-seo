@@ -47,6 +47,9 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
         Route::post('/pages/{page}/schemas/{schema}/validate', [SchemaController::class, 'validate']);
         Route::get('/pages/{page}/schemas/{schema}/versions', [SchemaController::class, 'versions']);
 
+        // Content Analysis (v1.5)
+        Route::get('/pages/{page}/content-analysis', [App\Http\Controllers\Api\V1\ContentController::class, 'show']);
+
         // Audits
         Route::post('/audits/run', [AuditController::class, 'run']);
         Route::get('/audits', [AuditController::class, 'index']);
