@@ -3,14 +3,19 @@
 @section('content')
 <div class="flex items-center justify-between">
     <h1 class="text-2xl font-semibold text-gray-900">Overview</h1>
-    <!-- Health Score Badge (v1.1) -->
-    <div id="health-score-container" class="hidden flex items-center gap-2">
-        <span class="text-xs text-gray-500 uppercase tracking-wider">Health Score</span>
-        <div id="health-score-badge" class="flex items-center justify-center rounded-full bg-gray-200 px-4 py-1 text-lg font-bold shadow-sm">
-            --
-        </div>
-        <div id="health-grade-badge" class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-600 text-sm font-bold text-white shadow-sm">
-            -
+    <div class="flex items-center gap-3">
+        <button id="run-diagnostics-btn" onclick="runDiagnostics()" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            Run Diagnostics
+        </button>
+        <!-- Health Score Badge (v1.1) -->
+        <div id="health-score-container" class="hidden flex items-center gap-2">
+            <span class="text-xs text-gray-500 uppercase tracking-wider">Health Score</span>
+            <div id="health-score-badge" class="flex items-center justify-center rounded-full bg-gray-200 px-4 py-1 text-lg font-bold shadow-sm">
+                --
+            </div>
+            <div id="health-grade-badge" class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-600 text-sm font-bold text-white shadow-sm">
+                -
+            </div>
         </div>
     </div>
 </div>
@@ -80,19 +85,42 @@
 @push('scripts')
 <script>
     async function loadDashboard() {
-        const [health, drift, readiness, audits, crawlRuns] = await Promise.all([
-            api(`/sites/${SITE_ID}/health`),     // v1.1
-            api(`/sites/${SITE_ID}/health/drift`), // v1.1
-            api(`/sites/${SITE_ID}/health/readiness`), // v1.1
+        // Only load safe, non-computationally expensive data by default
+        const [audits, crawlRuns] = await Promise.all([
             api(`/sites/${SITE_ID}/audits?per_page=5`),
             api(`/sites/${SITE_ID}/crawl/runs?per_page=1`) 
         ]);
 
-        renderHealth(health);
-        renderDrift(drift);
-        renderReadiness(readiness);
         renderAudits(audits);
         renderCrawl(crawlRuns);
+        
+        // Setup initial state for diagnostics
+        document.getElementById('health-score-container').classList.add('hidden');
+        document.getElementById('drift-status-badge').innerHTML = '<span class="text-gray-400">Waiting...</span>';
+        document.getElementById('dimensions-container').innerHTML = '<div class="text-sm text-gray-500 italic">Run diagnostics to view health data.</div>';
+        document.getElementById('readiness-container').innerHTML = '<div class="text-sm text-gray-500 italic">Run diagnostics to view authority status.</div>';
+    }
+
+    async function runDiagnostics() {
+        const btn = document.getElementById('run-diagnostics-btn');
+        if(btn) { btn.disabled = true; btn.textContent = 'Running...'; }
+
+        try {
+            const [health, drift, readiness] = await Promise.all([
+                api(`/sites/${SITE_ID}/health`),     // v1.1
+                api(`/sites/${SITE_ID}/health/drift`), // v1.1
+                api(`/sites/${SITE_ID}/health/readiness`) // v1.1
+            ]);
+
+            renderHealth(health);
+            renderDrift(drift);
+            renderReadiness(readiness);
+        } catch (e) {
+            console.error('Diagnostics failed', e);
+            alert('Diagnostics failed to run.');
+        } finally {
+            if(btn) { btn.disabled = false; btn.textContent = 'Run Diagnostics'; }
+        }
     }
 
     function renderHealth(data) {
