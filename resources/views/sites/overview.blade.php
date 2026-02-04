@@ -140,9 +140,10 @@
                     <div class="text-xs text-gray-400">Critical: ${dim.compliance.metrics.critical_audits}</div>
                 </div>
                 <div class="p-3 bg-gray-50 rounded border border-gray-100">
-                    <div class="text-xs text-gray-500 uppercase">Metadata</div>
-                    <div class="text-xl font-bold ${dim.metadata.score < 70 ? 'text-red-600' : 'text-gray-900'}">${dim.metadata.score}</div>
-                    <div class="text-xs text-gray-400">Density: ${(dim.metadata.metrics.density_rate * 100).toFixed(0)}%</div>
+                    <div class="text-xs text-gray-500 uppercase">Content</div>
+                    <div class="text-xl font-bold ${dim.content.score < 70 ? 'text-red-600' : 'text-gray-900'}">${dim.content.score}</div>
+                    <div class="text-xs text-gray-400">Meta: ${(dim.content.metrics.meta_density * 100).toFixed(0)}%</div>
+                    <div class="text-xs text-gray-400">H1: ${(dim.content.metrics.h1_density * 100).toFixed(0)}%</div>
                 </div>
                 <div class="p-3 bg-gray-50 rounded border border-gray-100">
                     <div class="text-xs text-gray-500 uppercase">Structure</div>

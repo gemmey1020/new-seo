@@ -55,6 +55,10 @@ class SeoMeta extends Model
         'twitter_image_url',
         'canonical_override',
         'index_status',
+        'robots_header',
+        'canonical_extracted',
+        'h1_first_text',
+        'images_sample_json',
     ];
 
     /**
@@ -65,6 +69,7 @@ class SeoMeta extends Model
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'images_sample_json' => 'array',
     ];
 
     /**

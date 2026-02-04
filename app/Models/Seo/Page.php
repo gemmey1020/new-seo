@@ -55,6 +55,9 @@ class Page extends Model
         'first_seen_at',
         'last_crawled_at',
         'discovered_by_crawl_run_id', // Engine invariant: must be set
+        'h1_count',
+        'image_count',
+        'content_bytes',
     ];
 
     /**
@@ -167,8 +170,27 @@ class Page extends Model
     /**
      * Get the tasks related to this page.
      */
+    /**
+     * Get the tasks related to this page.
+     */
     public function pageTasks(): HasMany
     {
         return $this->hasMany(SeoTask::class, 'page_id');
+    }
+
+    /**
+     * Get the on-the-fly analysis of the page.
+     * 
+     * @return array
+     */
+    public function getAnalysisAttribute(): array
+    {
+        // Use the pure analyzer service
+        // In production, we might resolve this via container or inject it
+        // For models, direct instantiation or Facade-like usage is common for computed attrs
+        $analyzer = new \App\Services\Analysis\PageSeoAnalyzer();
+        
+        // Cache this ideally, but for now live computation is fine for read-heavy views
+        return $analyzer->analyze($this);
     }
 }

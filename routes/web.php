@@ -42,6 +42,11 @@ Route::middleware('auth')->group(function () {
         Route::view('/crawl/{run}', 'sites.crawl.show')->name('sites.crawl.show'); // UI View for Run Details
         
         Route::view('/tasks', 'sites.tasks.board')->name('sites.tasks.board');
+        
+        // Missing Sidebar Items (Placeholders)
+        Route::view('/redirects', 'sites.redirects.index')->name('sites.redirects.index');
+        Route::view('/sitemaps', 'sites.sitemaps.index')->name('sites.sitemaps.index');
+        Route::view('/settings', 'sites.settings.index')->name('sites.settings.index');
     });
 });
 

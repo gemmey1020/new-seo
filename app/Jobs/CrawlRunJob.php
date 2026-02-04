@@ -12,18 +12,19 @@ use Illuminate\Support\Facades\Log;
 use App\Models\Crawl\CrawlRun;
 use App\Models\Crawl\CrawlLog;
 use App\Models\Seo\Page;
+use App\Models\Seo\SeoMeta;
 use DOMDocument;
 use DOMXPath;
 
 /**
- * CrawlRunJob - ENGINE CORE EXECUTION
+ * CrawlRunJob - ENGINE CORE EXECUTION WITH EXTRACTION
  * 
  * This job performs REAL crawl execution:
  * 1. Transitions CrawlRun through state machine
  * 2. Discovers URLs starting from seed (homepage)
  * 3. Performs actual HTTP GET requests
- * 4. Parses links from HTML
- * 5. Creates Page records ONLY through discovery
+ * 4. Extracts SEO signals (Title, Meta, H1, Images)
+ * 5. Persists Page and SeoMeta records
  * 6. Writes CrawlLog entries for every request
  * 
  * INVARIANT: Pages are created ONLY by this job's execution.
@@ -39,6 +40,7 @@ class CrawlRunJob implements ShouldQueue
     private const MAX_DEPTH = 3;
     private const REQUEST_DELAY_MS = 100;
     private const TIMEOUT_SECONDS = 10;
+    private const MAX_BODY_SIZE = 5 * 1024 * 1024; // 5MB limit for parsing
 
     /**
      * Create a new job instance.
@@ -60,7 +62,6 @@ class CrawlRunJob implements ShouldQueue
             return;
         }
 
-        // Must be pending to start
         if ($run->status !== CrawlRun::STATUS_PENDING) {
             Log::warning('CrawlRunJob: CrawlRun not in pending state', [
                 'id' => $run->id,
@@ -70,19 +71,14 @@ class CrawlRunJob implements ShouldQueue
         }
 
         try {
-            // Transition to running
             $run->transitionTo(CrawlRun::STATUS_RUNNING);
-
             $site = $run->site;
             if (!$site) {
                 $run->fail('Site not found');
                 return;
             }
 
-            // Build seed URL
             $seedUrl = 'https://' . $site->domain . '/';
-            
-            // Initialize crawl state
             $urlQueue = [['url' => $seedUrl, 'depth' => 0]];
             $visited = [];
             $pagesDiscovered = 0;
@@ -94,28 +90,37 @@ class CrawlRunJob implements ShouldQueue
                 $url = $item['url'];
                 $depth = $item['depth'];
 
-                // Skip if already visited
                 if (isset($visited[$url])) {
                     continue;
                 }
                 $visited[$url] = true;
 
-                // Rate limiting
                 usleep(self::REQUEST_DELAY_MS * 1000);
 
-                // Perform HTTP GET
                 $result = $this->fetchUrl($url, $run);
                 $pagesCrawled++;
 
                 if ($result['success']) {
-                    // Create or update Page record
-                    $page = $this->upsertPage($site->id, $url, $result, $run->id, $depth);
+                    // Extract content signals if HTML
+                    $extracted = [];
+                    Log::info('CrawlRunJob: Checking content extraction', [
+                        'url' => $url,
+                        'content_type' => $result['content_type'],
+                        'is_html' => $result['content_type'] === 'text/html'
+                    ]);
+                    
+                    if ($result['content_type'] === 'text/html') {
+                        $extracted = $this->extractContent($result['body'], $url, $result['headers'] ?? []);
+                        Log::info('CrawlRunJob: Extracted content', ['keys' => array_keys($extracted)]);
+                    }
+
+                    // Upsert Page and SeoMeta
+                    $page = $this->upsertPageAndMeta($site->id, $url, $result, $run->id, $depth, $extracted);
                     $pagesDiscovered++;
 
-                    // Log the request
                     $this->logRequest($run, $page, $url, $result);
 
-                    // Parse and queue links if within depth limit
+                    // Parse links for discovery
                     if ($depth < self::MAX_DEPTH && $result['content_type'] === 'text/html') {
                         $links = $this->parseLinks($result['body'], $url, $site->domain);
                         foreach ($links as $link) {
@@ -126,12 +131,9 @@ class CrawlRunJob implements ShouldQueue
                     }
                 } else {
                     $errorsCount++;
-                    
-                    // Log the error
                     $this->logError($run, $url, $result);
                 }
 
-                // Update progress periodically
                 if ($pagesCrawled % 10 === 0) {
                     $run->update([
                         'pages_discovered' => $pagesDiscovered,
@@ -141,7 +143,6 @@ class CrawlRunJob implements ShouldQueue
                 }
             }
 
-            // Final update and transition to completed
             $run->update([
                 'pages_discovered' => $pagesDiscovered,
                 'pages_crawled' => $pagesCrawled,
@@ -153,7 +154,6 @@ class CrawlRunJob implements ShouldQueue
                 'run_id' => $run->id,
                 'pages_discovered' => $pagesDiscovered,
                 'pages_crawled' => $pagesCrawled,
-                'errors_count' => $errorsCount,
             ]);
 
         } catch (\Exception $e) {
@@ -161,8 +161,6 @@ class CrawlRunJob implements ShouldQueue
                 'run_id' => $run->id,
                 'error' => $e->getMessage(),
             ]);
-            
-            // Transition to failed
             $run->error_message = $e->getMessage();
             if ($run->status === CrawlRun::STATUS_RUNNING) {
                 $run->transitionTo(CrawlRun::STATUS_FAILED);
@@ -171,31 +169,28 @@ class CrawlRunJob implements ShouldQueue
     }
 
     /**
-     * Fetch a URL and return response data.
+     * Fetch URL and return response data + headers.
      */
     private function fetchUrl(string $url, CrawlRun $run): array
     {
         try {
             $start = microtime(true);
-            
             $response = Http::withUserAgent($run->user_agent)
                 ->timeout(self::TIMEOUT_SECONDS)
                 ->withOptions(['allow_redirects' => ['track_redirects' => true]])
                 ->get($url);
-            
             $duration = round((microtime(true) - $start) * 1000);
-            $finalUrl = $response->effectiveUri()?->__toString() ?? $url;
-
+            
             return [
                 'success' => true,
                 'status_code' => $response->status(),
                 'response_ms' => $duration,
                 'bytes' => strlen($response->body()),
                 'content_type' => $this->parseContentType($response->header('Content-Type')),
-                'final_url' => $finalUrl,
+                'final_url' => $response->effectiveUri()?->__toString() ?? $url,
                 'body' => $response->body(),
+                'headers' => $response->headers(),
             ];
-
         } catch (\Exception $e) {
             return [
                 'success' => false,
@@ -207,56 +202,161 @@ class CrawlRunJob implements ShouldQueue
     }
 
     /**
-     * Parse Content-Type header to get base type.
+     * Extract SEO signals from HTML.
      */
-    private function parseContentType(?string $header): string
+    private function extractContent(string $html, string $url, array $headers): array
     {
-        if (!$header) {
-            return 'unknown';
+        // Skip if too large
+        if (strlen($html) > self::MAX_BODY_SIZE) {
+            return [];
         }
-        $parts = explode(';', $header);
-        return trim($parts[0]);
+
+        libxml_use_internal_errors(true);
+        $dom = new DOMDocument();
+        $dom->loadHTML($html, LIBXML_NOWARNING | LIBXML_NOERROR);
+        $xpath = new DOMXPath($dom);
+
+        // 1. Title
+        $title = '';
+        $nodes = $xpath->query('//title');
+        if ($nodes->length > 0) {
+            $title = trim($nodes->item(0)->textContent);
+        }
+
+        // 2. Meta Description
+        $description = '';
+        $nodes = $xpath->query('//meta[@name="description"]/@content');
+        if ($nodes->length > 0) {
+            $description = trim($nodes->item(0)->nodeValue);
+        }
+
+        // 3. Robots Meta
+        $robotsMeta = '';
+        $nodes = $xpath->query('//meta[@name="robots"]/@content');
+        if ($nodes->length > 0) {
+            $robotsMeta = trim($nodes->item(0)->nodeValue);
+        }
+
+        // 4. Canonical
+        $canonical = '';
+        $nodes = $xpath->query('//link[@rel="canonical"]/@href');
+        if ($nodes->length > 0) {
+            $canonical = trim($nodes->item(0)->nodeValue);
+             // Resolve relative canonical if needed
+             // Simple check: if not starts with http, assume relative (could be refined)
+             if ($canonical && !str_starts_with($canonical, 'http')) {
+                 $base = parse_url($url);
+                 $baseUrl = ($base['scheme'] ?? 'https') . '://' . ($base['host'] ?? '');
+                 $canonical = $baseUrl . '/' . ltrim($canonical, '/');
+             }
+        }
+
+        // 5. H1
+        $h1Count = 0;
+        $h1Text = null;
+        $nodes = $xpath->query('//h1');
+        $h1Count = $nodes->length;
+        if ($h1Count > 0) {
+            $h1Text = trim($nodes->item(0)->textContent);
+        }
+
+        // 6. Images
+        $imageCount = 0;
+        $imageSample = [];
+        $nodes = $xpath->query('//img[@src]');
+        $imageCount = $nodes->length;
+        foreach ($nodes as $i => $node) {
+            if ($i >= 10) break;
+            $src = trim($node->getAttribute('src'));
+            if ($src) {
+                $imageSample[] = $src;
+            }
+        }
+
+        // 7. Robots Header
+        $robotsHeader = null;
+        // Headers might be array of strings or string
+        if (isset($headers['X-Robots-Tag'])) {
+            $headerVal = $headers['X-Robots-Tag'];
+            $robotsHeader = is_array($headerVal) ? implode(', ', $headerVal) : $headerVal;
+        } elseif (isset($headers['x-robots-tag'])) {
+            $headerVal = $headers['x-robots-tag'];
+            $robotsHeader = is_array($headerVal) ? implode(', ', $headerVal) : $headerVal;
+        }
+
+        libxml_clear_errors();
+
+        return [
+            'title' => substr($title, 0, 255), // Limit length
+            'description' => substr($description, 0, 500),
+            'robots' => substr($robotsMeta, 0, 255),
+            'robots_header' => substr($robotsHeader, 0, 255),
+            'canonical_extracted' => $canonical,
+            'h1_count' => $h1Count,
+            'h1_first_text' => substr($h1Text, 0, 255),
+            'image_count' => $imageCount,
+            'images_sample_json' => $imageSample,
+        ];
     }
 
     /**
-     * Create or update a Page record.
-     * 
-     * INVARIANT: This is the ONLY place where Pages are created.
+     * Upsert Page AND SeoMeta.
      */
-    private function upsertPage(int $siteId, string $url, array $result, int $crawlRunId, int $depth): Page
+    private function upsertPageAndMeta(int $siteId, string $url, array $result, int $crawlRunId, int $depth, array $extracted): Page
     {
         $path = parse_url($url, PHP_URL_PATH) ?: '/';
         
         $page = Page::where('site_id', $siteId)->where('url', $url)->first();
+
+        // Prepare page data
+        $pageData = [
+            'http_status_last' => $result['status_code'],
+            'last_crawled_at' => now(),
+            'h1_count' => $extracted['h1_count'] ?? 0,
+            'image_count' => $extracted['image_count'] ?? 0,
+            'content_bytes' => $result['bytes'] ?? 0,
+        ];
         
         if ($page) {
-            // Update existing page
-            $page->update([
-                'http_status_last' => $result['status_code'],
-                'last_crawled_at' => now(),
-            ]);
+            $page->update($pageData);
         } else {
-            // Create new page - this will validate the invariant
-            $page = Page::create([
+            $pageData = array_merge($pageData, [
                 'site_id' => $siteId,
                 'url' => $url,
                 'path' => $path,
                 'page_type' => $depth === 0 ? 'homepage' : 'general',
                 'index_status' => 'unknown',
-                'http_status_last' => $result['status_code'],
                 'depth_level' => $depth,
                 'first_seen_at' => now(),
-                'last_crawled_at' => now(),
-                'discovered_by_crawl_run_id' => $crawlRunId, // REQUIRED by invariant
+                'discovered_by_crawl_run_id' => $crawlRunId,
             ]);
+            $page = Page::create($pageData);
         }
+
+        // Upsert SeoMetadata
+        SeoMeta::updateOrCreate(
+            ['page_id' => $page->id],
+            [
+                'title' => $extracted['title'] ?? null,
+                'description' => $extracted['description'] ?? null,
+                'robots' => $extracted['robots'] ?? null,
+                'robots_header' => $extracted['robots_header'] ?? null,
+                'canonical_extracted' => $extracted['canonical_extracted'] ?? null,
+                'h1_first_text' => $extracted['h1_first_text'] ?? null,
+                'images_sample_json' => $extracted['images_sample_json'] ?? [],
+            ]
+        );
         
         return $page;
     }
 
-    /**
-     * Log a successful request.
-     */
+    private function parseContentType(?string $header): string
+    {
+        if (!$header) return 'unknown';
+        $parts = explode(';', $header);
+        return trim($parts[0]);
+    }
+
     private function logRequest(CrawlRun $run, Page $page, string $url, array $result): void
     {
         CrawlLog::create([
@@ -273,9 +373,6 @@ class CrawlRunJob implements ShouldQueue
         ]);
     }
 
-    /**
-     * Log an error response.
-     */
     private function logError(CrawlRun $run, string $url, array $result): void
     {
         CrawlLog::create([
@@ -293,25 +390,12 @@ class CrawlRunJob implements ShouldQueue
         ]);
     }
 
-    /**
-     * Parse links from HTML content.
-     * 
-     * Returns only same-domain, normalized URLs.
-     */
     private function parseLinks(string $html, string $baseUrl, string $domain): array
     {
-        $links = [];
-        
-        if (empty($html)) {
-            return $links;
-        }
-
-        // Suppress HTML parsing errors
+        if (empty($html)) return [];
         libxml_use_internal_errors(true);
-        
         $dom = new DOMDocument();
         $dom->loadHTML($html, LIBXML_NOWARNING | LIBXML_NOERROR);
-        
         $xpath = new DOMXPath($dom);
         $anchors = $xpath->query('//a[@href]');
 
@@ -320,89 +404,45 @@ class CrawlRunJob implements ShouldQueue
         $baseHost = $baseParts['host'] ?? $domain;
         $basePath = $baseParts['path'] ?? '/';
 
+        $links = [];
         foreach ($anchors as $anchor) {
             $href = $anchor->getAttribute('href');
-            
-            // Skip empty, javascript, mailto, tel, anchors
-            if (empty($href) || 
-                str_starts_with($href, 'javascript:') || 
-                str_starts_with($href, 'mailto:') ||
-                str_starts_with($href, 'tel:') ||
-                str_starts_with($href, '#')) {
-                continue;
-            }
-
-            // Normalize URL
+            if (empty($href) || str_starts_with($href, 'javascript:') || str_starts_with($href, 'mailto:') || str_starts_with($href, 'tel:') || str_starts_with($href, '#')) continue;
             $normalized = $this->normalizeUrl($href, $baseScheme, $baseHost, $basePath);
-            
             if ($normalized && $this->isSameDomain($normalized, $domain)) {
-                $links[$normalized] = true; // Use as key for deduplication
+                $links[$normalized] = true;
             }
         }
-
         libxml_clear_errors();
-        
         return array_keys($links);
     }
 
-    /**
-     * Normalize a URL to absolute form.
-     */
     private function normalizeUrl(string $href, string $baseScheme, string $baseHost, string $basePath): ?string
     {
-        // Already absolute
-        if (preg_match('/^https?:\/\//', $href)) {
-            return $this->cleanUrl($href);
-        }
-
-        // Protocol-relative
-        if (str_starts_with($href, '//')) {
-            return $this->cleanUrl($baseScheme . ':' . $href);
-        }
-
-        // Root-relative
-        if (str_starts_with($href, '/')) {
-            return $this->cleanUrl($baseScheme . '://' . $baseHost . $href);
-        }
-
-        // Relative
+        if (preg_match('/^https?:\/\//', $href)) return $this->cleanUrl($href);
+        if (str_starts_with($href, '//')) return $this->cleanUrl($baseScheme . ':' . $href);
+        if (str_starts_with($href, '/')) return $this->cleanUrl($baseScheme . '://' . $baseHost . $href);
         $baseDir = rtrim(dirname($basePath), '/');
         return $this->cleanUrl($baseScheme . '://' . $baseHost . $baseDir . '/' . $href);
     }
 
-    /**
-     * Clean URL by removing fragments and normalizing.
-     */
     private function cleanUrl(string $url): string
     {
-        // Remove fragment
         $url = preg_replace('/#.*$/', '', $url);
-        
-        // Remove trailing slash from non-root paths
         $parsed = parse_url($url);
         if (isset($parsed['path']) && $parsed['path'] !== '/' && str_ends_with($parsed['path'], '/')) {
             $parsed['path'] = rtrim($parsed['path'], '/');
         }
-
-        // Rebuild URL
         $scheme = $parsed['scheme'] ?? 'https';
         $host = $parsed['host'] ?? '';
         $path = $parsed['path'] ?? '/';
         $query = isset($parsed['query']) ? '?' . $parsed['query'] : '';
-
         return $scheme . '://' . $host . $path . $query;
     }
 
-    /**
-     * Check if URL is on the same domain.
-     */
     private function isSameDomain(string $url, string $domain): bool
     {
         $host = parse_url($url, PHP_URL_HOST);
-        
-        // Exact match or www subdomain match
-        return $host === $domain || 
-               $host === 'www.' . $domain ||
-               $domain === 'www.' . $host;
+        return $host === $domain || $host === 'www.' . $domain || $domain === 'www.' . $host;
     }
 }

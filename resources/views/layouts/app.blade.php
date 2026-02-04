@@ -51,6 +51,16 @@
                             <a href="{{ route('sites.tasks.board', request()->route('site')) }}" class="group flex items-center rounded-md px-2 py-2 text-sm font-medium hover:bg-gray-800 text-gray-300 hover:text-white">
                                 Tasks
                             </a>
+                            <div class="my-2 border-t border-gray-800"></div>
+                            <a href="{{ route('sites.redirects.index', request()->route('site')) }}" class="group flex items-center rounded-md px-2 py-2 text-sm font-medium hover:bg-gray-800 text-gray-300 hover:text-white">
+                                Redirects
+                            </a>
+                            <a href="{{ route('sites.sitemaps.index', request()->route('site')) }}" class="group flex items-center rounded-md px-2 py-2 text-sm font-medium hover:bg-gray-800 text-gray-300 hover:text-white">
+                                Sitemaps
+                            </a>
+                            <a href="{{ route('sites.settings.index', request()->route('site')) }}" class="group flex items-center rounded-md px-2 py-2 text-sm font-medium hover:bg-gray-800 text-gray-300 hover:text-white">
+                                Settings
+                            </a>
                         </div>
                     </div>
                 @endif

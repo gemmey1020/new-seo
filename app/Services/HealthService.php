@@ -128,40 +128,36 @@ class HealthService
 
     private function calculateMetrics(Site $site): array
     {
-        // Dimensions
+        // Dimensions Check
         $stability = $this->calcStability($site);
         $compliance = $this->calcCompliance($site);
-        $metadata = $this->calcMetadata($site);
+        $content = $this->calcContent($site); // Renamed from Metadata
         $structure = $this->calcStructure($site);
 
         return [
             'stability' => $stability,
             'compliance' => $compliance,
-            'metadata' => $metadata,
+            'content' => $content, // New Key
             'structure' => $structure
         ];
     }
 
     private function calcStability(Site $site): array
     {
+        // Reduced Weight: 0.3
         $lastRun = CrawlRun::where('site_id', $site->id)->latest()->first();
         if (!$lastRun) {
-            return ['score' => 0, 'weight' => 0.4, 'metrics' => ['success_rate' => 0, 'latency_avg_ms' => 0]];
+            return ['score' => 0, 'weight' => 0.3, 'metrics' => ['success_rate' => 0, 'latency_avg_ms' => 0]];
         }
 
-        // EXP-003: Success Rate
         $logs = DB::table('crawl_logs')->where('crawl_run_id', $lastRun->id);
         $total = $logs->count();
-        if ($total === 0) return ['score' => 0, 'weight' => 0.4, 'metrics' => ['success_rate' => 0, 'latency_avg_ms' => 0]];
+        if ($total === 0) return ['score' => 0, 'weight' => 0.3, 'metrics' => ['success_rate' => 0, 'latency_avg_ms' => 0]];
 
         $success = $logs->where('status_code', 200)->count();
         $rate = $success / $total;
 
-        // EXP-003: Latency
         $avgMs = $logs->avg('response_ms');
-
-        // v1.2 Refinement: Latency Penalty
-        // Score = (Success Rate * 70%) + (Latency Score * 30%)
         
         $latencyScore = 0;
         if ($avgMs < 200) $latencyScore = 100;
@@ -173,7 +169,7 @@ class HealthService
 
         return [
             'score' => $finalScore,
-            'weight' => 0.4,
+            'weight' => 0.3,
             'metrics' => [
                 'success_rate' => round($rate, 2),
                 'latency_avg_ms' => round($avgMs)
@@ -183,7 +179,7 @@ class HealthService
 
     private function calcCompliance(Site $site): array
     {
-        // EXP-003: Audit Score
+        // Reduced Weight: 0.2
         $critical = SeoAudit::where('site_id', $site->id)->where('status', 'open')->where('severity', 'critical')->count();
         $high = SeoAudit::where('site_id', $site->id)->where('status', 'open')->where('severity', 'high')->count();
 
@@ -192,7 +188,7 @@ class HealthService
 
         return [
             'score' => $score,
-            'weight' => 0.3,
+            'weight' => 0.2,
             'metrics' => [
                 'critical_audits' => $critical,
                 'high_audits' => $high
@@ -200,48 +196,59 @@ class HealthService
         ];
     }
 
-    private function calcMetadata(Site $site): array
+    private function calcContent(Site $site): array
     {
-        // EXP-003: Density
+        // EXP-003: Content Quality (New Weight: 0.3)
         $totalPages = Page::where('site_id', $site->id)->count();
-        if ($totalPages === 0) return ['score' => 0, 'weight' => 0.2, 'metrics' => ['density_rate' => 0]];
+        if ($totalPages === 0) return ['score' => 0, 'weight' => 0.3, 'metrics' => ['meta_density' => 0, 'h1_density' => 0]];
 
+        // 1. Meta Title Density
         $withMeta = DB::table('pages')
             ->join('seo_meta', 'pages.id', '=', 'seo_meta.page_id')
             ->where('pages.site_id', $site->id)
             ->whereNotNull('seo_meta.title')
             ->where('seo_meta.title', '!=', '')
             ->count();
+        $metaRate = $withMeta / $totalPages;
 
-        $rate = $withMeta / $totalPages;
-        
+        // 2. H1 Density (New Phase E Data)
+        $withH1 = DB::table('pages')
+            ->where('site_id', $site->id)
+            ->where('h1_count', '>', 0)
+            ->count();
+        $h1Rate = $withH1 / $totalPages;
+
+        // Composite Score: 60% Meta + 40% H1
+        $score = round(($metaRate * 60) + ($h1Rate * 40));
+
         return [
-            'score' => round($rate * 100),
-            'weight' => 0.2,
+            'score' => $score,
+            'weight' => 0.3,
             'metrics' => [
-                'density_rate' => round($rate, 2)
+                'meta_density' => round($metaRate, 2),
+                'h1_density' => round($h1Rate, 2)
             ]
         ];
     }
 
     private function calcStructure(Site $site): array
     {
-        // EXP-003: Orphan Rate
+        // Increased Weight: 0.2
         $totalPages = Page::where('site_id', $site->id)->where('path', '!=', '/')->count();
-        if ($totalPages === 0) return ['score' => 100, 'weight' => 0.1, 'metrics' => ['orphan_rate' => 0]];
+        if ($totalPages === 0) return ['score' => 100, 'weight' => 0.2, 'metrics' => ['orphan_rate' => 0]];
 
-        // Pages with NO inbound links
+        // Orphans (No Inbound)
         $orphans = Page::where('site_id', $site->id)
             ->where('path', '!=', '/')
             ->doesntHave('inboundLinks')
             ->count();
         
         $rate = $orphans / $totalPages;
-        $score = max(0, 100 - ($rate * 100)); // 100% orphans = 0 score.
+        $score = max(0, 100 - ($rate * 100));
 
         return [
             'score' => round($score),
-            'weight' => 0.1,
+            'weight' => 0.2,
             'metrics' => [
                 'orphan_rate' => round($rate, 2)
             ]
