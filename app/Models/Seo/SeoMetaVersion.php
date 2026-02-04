@@ -59,6 +59,10 @@ class SeoMetaVersion extends Model
         'twitter_title',
         'twitter_description',
         'twitter_image_url',
+        'twitter_description',
+        'twitter_image_url',
+        'canonical_override',
+        'index_status',
         'change_note',
     ];
 

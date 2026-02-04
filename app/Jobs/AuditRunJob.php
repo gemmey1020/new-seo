@@ -29,7 +29,8 @@ class AuditRunJob implements ShouldQueue
         $site = Site::findOrFail($this->siteId);
         $pages = Page::where('site_id', $this->siteId)->with('meta')->get();
         $rules = AuditRule::where('is_active', true)->get();
-        $contentService = new \App\Services\ContentService();
+        // Use container for mockability
+        $contentService = app(\App\Services\ContentService::class);
 
         foreach ($pages as $page) {
             $contentAnalysis = null; // Lazy load per page
@@ -108,12 +109,88 @@ class AuditRunJob implements ShouldQueue
                  return ['description' => "Page returned status {$page->http_status_last}", 'evidence' => ['status' => $page->http_status_last]];
              }
         }
+        
+        // --- Phase B: Missing Audits ---
+        
+        // 9. param_url_detected
+        if ($rule->key === 'param_url_detected') {
+            if (str_contains($page->url, '?')) {
+                // Parse params
+                $query = parse_url($page->url, PHP_URL_QUERY);
+                parse_str($query, $params);
+                return [
+                    'description' => 'URL contains query parameters.',
+                    'evidence' => ['params' => array_keys($params)]
+                ];
+            }
+        }
+        
+        // 10. duplicate_slug_detected
+        if ($rule->key === 'duplicate_slug_detected') {
+            // Check for other pages with same path/slug
+            // Optimization: We could cache this map, but per-row safety first.
+            $duplicates = Page::where('site_id', $page->site_id)
+                ->where('path', $page->path)
+                ->where('id', '!=', $page->id)
+                ->get(['id', 'url']);
+                
+            if ($duplicates->count() > 0) {
+                return [
+                    'description' => 'Duplicate path/slug detected.',
+                    'evidence' => [
+                        'conflicting_ids' => $duplicates->pluck('id')->toArray(),
+                        'conflicting_urls' => $duplicates->pluck('url')->toArray()
+                    ]
+                ];
+            }
+        }
 
-        // --- v1.5 Deep Rules ---
+        // --- v1.5 Deep Rules (Requires Analysis) ---
         
         if ($analysis && isset($analysis['error'])) {
-             // If content fetch failed, we can't audit deep rules. Skip/Silent or Report?
+             // Content Fetch Failed - Skip
              return null; 
+        }
+
+        // 11. pagination_detected (Deep)
+        if ($rule->key === 'pagination_detected' && $analysis) {
+            $prev = $analysis['meta']['prev'] ?? null;
+            $next = $analysis['meta']['next'] ?? null;
+            
+            if ($prev || $next) {
+                return [
+                    'description' => 'Pagination links detected.',
+                    'evidence' => [
+                        'prev' => $prev, 
+                        'next' => $next,
+                        'type' => ($prev && $next) ? 'both' : ($prev ? 'prev' : 'next')
+                    ]
+                ];
+            }
+        }
+
+        // 12. robots_meta_detected (Deep)
+        if ($rule->key === 'robots_meta_detected' && $analysis) {
+            $robots = $analysis['meta']['robots'] ?? null;
+            // Also check DB Meta if Analysis missed it or complementary? 
+            // Audit requires "Read meta robots values from SeoMeta or DOM".
+            // Let's merge.
+            $dbRobots = $meta?->robots;
+            $finalRobots = $robots ?: $dbRobots;
+            
+            if ($finalRobots) {
+                // Parse logic: safe parse flags
+                $flags = array_map('trim', explode(',', strtolower($finalRobots)));
+                return [
+                    'description' => 'Robots Meta detected.',
+                    'evidence' => [
+                        'raw' => $finalRobots,
+                        'index' => !in_array('noindex', $flags),
+                        'follow' => !in_array('nofollow', $flags),
+                        'flags' => $flags
+                    ]
+                ];
+            }
         }
 
         // 6. canonical_mismatch
@@ -121,7 +198,7 @@ class AuditRunJob implements ShouldQueue
             $canonical = $analysis['meta']['canonical'] ?? null;
             // Normalize URLs for comparison (trim slash)
             $pageUrl = rtrim($page->url, '/');
-            $canonUrl = rtrim($canonical, '/');
+            $canonUrl = rtrim($canonical ?? '', '/');
 
             if ($canonical && $pageUrl !== $canonUrl) {
                 return [
@@ -133,7 +210,7 @@ class AuditRunJob implements ShouldQueue
 
         // 7. heading_hierarchy
         if ($rule->key === 'heading_hierarchy' && $analysis) {
-            if (!empty($analysis['structure']['issues'])) {
+             if (!empty($analysis['structure']['issues'])) {
                 return [
                     'description' => 'Heading hierarchy issues detected.',
                     'evidence' => ['issues' => $analysis['structure']['issues']]

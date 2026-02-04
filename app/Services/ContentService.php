@@ -150,15 +150,34 @@ class ContentService
     private function calcMeta(\DOMDocument $dom): array
     {
         $canonical = null;
+        $prev = null;
+        $next = null;
+        $robots = null;
+
+        // Link Tags
         foreach ($dom->getElementsByTagName('link') as $link) {
-            if ($link->getAttribute('rel') === 'canonical') {
+            $rel = $link->getAttribute('rel');
+            if ($rel === 'canonical') {
                 $canonical = $link->getAttribute('href');
-                break;
+            } elseif ($rel === 'prev') {
+                $prev = $link->getAttribute('href');
+            } elseif ($rel === 'next') {
+                $next = $link->getAttribute('href');
+            }
+        }
+
+        // Meta Tags
+        foreach ($dom->getElementsByTagName('meta') as $meta) {
+            if (strtolower($meta->getAttribute('name')) === 'robots') {
+                $robots = $meta->getAttribute('content');
             }
         }
 
         return [
-            'canonical' => $canonical
+            'canonical' => $canonical,
+            'prev' => $prev,
+            'next' => $next,
+            'robots' => $robots
         ];
     }
 

@@ -43,13 +43,18 @@ class SeoMeta extends Model
         'title',
         'description',
         'robots',
+        'canonical_override',
+        'index_status',
         'og_title',
         'og_description',
         'og_image_url',
         'twitter_card',
         'twitter_title',
         'twitter_description',
+        'twitter_description',
         'twitter_image_url',
+        'canonical_override',
+        'index_status',
     ];
 
     /**

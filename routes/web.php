@@ -45,4 +45,11 @@ Route::middleware('auth')->group(function () {
     });
 });
 
+// HUD Route
+Route::middleware(['auth'])->group(function () {
+    Route::get('/dashboard/hud', function () {
+        return view('hud');
+    })->name('hud');
+});
+
 require __DIR__.'/auth.php';
