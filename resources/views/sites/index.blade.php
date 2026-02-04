@@ -54,12 +54,33 @@
     document.getElementById('create-site-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
+        const btn = e.target.querySelector('button[type="submit"]');
+        const originalText = btn.textContent;
+        
+        // C.3 - Show loading state
+        btn.textContent = 'Creating...';
+        btn.disabled = true;
+        
         try {
-            await api('/sites', 'POST', Object.fromEntries(fd));
-            e.target.reset();
-            loadSites();
+            // B.3 - Redirect to site dashboard after successful creation
+            const newSite = await api('/sites', 'POST', Object.fromEntries(fd));
+            
+            // Redirect to the new site's dashboard with welcome flag for toast
+            window.location.href = `/sites/${newSite.id}?welcome=1`;
         } catch (err) {
-            alert('Failed to create site. Ensure you have admin permissions.');
+            // Restore button state
+            btn.textContent = originalText;
+            btn.disabled = false;
+            
+            // Show validation error if available (A.2 domain validation)
+            if (err.response && err.response.errors) {
+                const messages = Object.values(err.response.errors).flat().join('\n');
+                alert('Validation Error:\n' + messages);
+            } else if (err.message) {
+                alert('Error: ' + err.message);
+            } else {
+                alert('Failed to create site. Ensure you have admin permissions.');
+            }
         }
     });
 

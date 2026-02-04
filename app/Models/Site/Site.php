@@ -60,6 +60,18 @@ class Site extends Model
     ];
 
     /**
+     * Boot the model (B.2 - Wire Site::created event to bootstrap).
+     */
+    protected static function booted(): void
+    {
+        static::created(function (Site $site) {
+            // Invoke SiteBootstrapService to create initial data
+            $bootstrapService = app(\App\Services\SiteBootstrapService::class);
+            $bootstrapService->bootstrap($site);
+        });
+    }
+
+    /**
      * Get the memberships for the site.
      */
     public function siteUsers(): HasMany

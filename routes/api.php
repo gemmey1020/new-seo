@@ -58,6 +58,11 @@ Route::prefix('v1')->middleware(['web', 'auth'])->group(function () {
         Route::get('crawl/runs', [\App\Http\Controllers\Api\V1\CrawlController::class, 'index']);
         Route::post('crawl/runs', [\App\Http\Controllers\Api\V1\CrawlController::class, 'store']);
         Route::get('crawl/logs', [\App\Http\Controllers\Api\V1\CrawlController::class, 'logs']);
+        
+        // Health Module (A.1 - Critical Path Unblock)
+        Route::get('health', [\App\Http\Controllers\Api\V1\HealthController::class, 'show']);
+        Route::get('health/drift', [\App\Http\Controllers\Api\V1\HealthController::class, 'drift']);
+        Route::get('health/readiness', [\App\Http\Controllers\Api\V1\HealthController::class, 'readiness']);
     });
 });
 

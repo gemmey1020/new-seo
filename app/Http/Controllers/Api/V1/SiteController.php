@@ -25,8 +25,22 @@ class SiteController extends Controller
      */
     public function store(Request $request)
     {
-        // Create Site
-        $site = Site::create($request->all());
+        // A.2 - Domain Validation (Critical Path Unblock)
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'domain' => [
+                'required',
+                'string',
+                'max:255',
+                // RFC-compliant hostname pattern: alphanumeric with hyphens, dots for subdomains
+                'regex:/^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63})*\.[A-Za-z]{2,}$/'
+            ],
+        ], [
+            'domain.regex' => 'The domain must be a valid hostname (e.g., example.com).'
+        ]);
+
+        // Create Site with validated data
+        $site = Site::create($validated);
 
         // Assign Creator as Admin
         $adminRoleId = Role::where('name', 'admin')->first()?->id ?? 1;

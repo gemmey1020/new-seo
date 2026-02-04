@@ -36,6 +36,22 @@
 
 @push('scripts')
 <script>
+    // C.3 - Toast notification system for visual feedback
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `fixed top-4 right-4 px-4 py-3 rounded shadow-lg z-50 transition-opacity duration-300 ${
+            type === 'success' ? 'bg-green-500 text-white' : 
+            type === 'error' ? 'bg-red-500 text-white' : 
+            'bg-blue-500 text-white'
+        }`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
     async function loadPages(pageUrl = `/sites/${SITE_ID}/pages`) {
         // Strip API_BASE if handled by api(), but pagination returns full URL. 
         // Our api helper appends API_BASE. 
@@ -51,6 +67,12 @@
         const res = await api(endpoint);
         const tbody = document.getElementById('pages-table-body');
         
+        if (!res.data || res.data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-gray-500">No pages found. Use "Add Page" or "Sync Sitemap" to populate.</td></tr>`;
+            document.getElementById('pagination-controls').innerHTML = '';
+            return;
+        }
+
         tbody.innerHTML = res.data.map(page => `
             <tr>
                 <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">
@@ -81,25 +103,68 @@
         `;
     }
 
+    // C.1 - Sync Sitemap with visual feedback
     async function importSitemap() {
         if(!confirm('Import/Sync sitemaps now?')) return;
+        
+        const btn = event.target;
+        const originalText = btn.textContent;
+        btn.textContent = 'Syncing...';
+        btn.disabled = true;
+        
         try {
-            await api(`/sites/${SITE_ID}/pages/import-sitemap`, 'POST');
-            alert('Import queued.');
-        } catch(e) { alert('Error triggering import.'); }
+            const result = await api(`/sites/${SITE_ID}/pages/import-sitemap`, 'POST');
+            showToast('Sitemap sync initiated! Pages will appear after processing.', 'success');
+            // Reload pages after short delay to show new data
+            setTimeout(() => loadPages(), 1500);
+        } catch(e) {
+            const errorMsg = e.message || 'Error triggering import.';
+            showToast(errorMsg, 'error');
+        } finally {
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
     }
 
+    // C.2 - Add Page with modal-style prompt and feedback
     async function createPage() {
         const path = prompt('Enter page path (e.g. /about):');
         if(!path) return;
+        
+        // Validate path starts with /
+        if (!path.startsWith('/')) {
+            showToast('Path must start with /', 'error');
+            return;
+        }
+        
+        const btn = event.target;
+        const originalText = btn.textContent;
+        btn.textContent = 'Adding...';
+        btn.disabled = true;
+        
         try {
+            // Build full URL from site domain
+            const siteInfo = await api(`/sites/${SITE_ID}`);
+            const fullUrl = `https://${siteInfo.domain}${path}`;
+            
             await api(`/sites/${SITE_ID}/pages`, 'POST', {
-                url: 'http://placeholder' + path, // MVP hack, should ask for full URL or auto-prefix 
+                url: fullUrl,
                 path: path,
-                site_id: SITE_ID // Controller expects site_id
+                site_id: SITE_ID,
+                page_type: 'general',
+                index_status: 'unknown',
+                depth_level: path.split('/').filter(Boolean).length
             });
+            
+            showToast(`Page "${path}" created successfully!`, 'success');
             loadPages();
-        } catch(e) { alert('Failed to create page.'); }
+        } catch(e) {
+            const errorMsg = e.message || 'Failed to create page.';
+            showToast(errorMsg, 'error');
+        } finally {
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
     }
 
     loadPages();

@@ -277,8 +277,24 @@
         }
     }
 
+    // C.3 - Show welcome toast for newly created sites
+    function showWelcomeToast() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('welcome') === '1') {
+            const toast = document.createElement('div');
+            toast.className = 'fixed top-4 right-4 px-4 py-3 rounded shadow-lg z-50 bg-green-500 text-white transition-opacity duration-300';
+            toast.innerHTML = '🎉 Site created successfully! Bootstrap data initialized.';
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+            // Clean up URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }
 
-
+    showWelcomeToast();
     loadDashboard();
 </script>
 @endpush
