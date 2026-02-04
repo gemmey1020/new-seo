@@ -54,6 +54,7 @@ class Page extends Model
         'depth_level',
         'first_seen_at',
         'last_crawled_at',
+        'discovered_by_crawl_run_id', // Engine invariant: must be set
     ];
 
     /**
@@ -67,6 +68,45 @@ class Page extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    /**
+     * Boot the model with Engine Invariant enforcement.
+     * 
+     * INVARIANT: Pages can only be created by crawl execution.
+     */
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        static::creating(function ($page) {
+            // INVARIANT: Page MUST have a crawl_run_id to prove execution origin
+            if (empty($page->discovered_by_crawl_run_id)) {
+                throw new \DomainException(
+                    'ENGINE INVARIANT VIOLATION: Page cannot be created without discovered_by_crawl_run_id. ' .
+                    'Pages must be created by CrawlRunJob execution, not manually.'
+                );
+            }
+            
+            // Set first_seen_at if not set
+            if (empty($page->first_seen_at)) {
+                $page->first_seen_at = now();
+            }
+        });
+
+        static::updating(function ($page) {
+            // INVARIANT: first_seen_at and discovered_by_crawl_run_id are immutable
+            if ($page->isDirty('first_seen_at')) {
+                throw new \DomainException(
+                    'ENGINE INVARIANT VIOLATION: first_seen_at is immutable after creation.'
+                );
+            }
+            if ($page->isDirty('discovered_by_crawl_run_id')) {
+                throw new \DomainException(
+                    'ENGINE INVARIANT VIOLATION: discovered_by_crawl_run_id is immutable after creation.'
+                );
+            }
+        });
+    }
 
     /**
      * Get the site that owns the page.

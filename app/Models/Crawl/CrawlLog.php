@@ -51,6 +51,7 @@ class CrawlLog extends Model
         'page_id',
         'crawl_run_id',
         'user_agent',
+        'requested_url',
         'status_code',
         'response_ms',
         'bytes',
