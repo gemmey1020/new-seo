@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Models\Site\Site;
 use App\Models\Audit\SeoAudit;
-use App\Models\Crawl\InternalLink;
+use App\Models\Seo\PageLink;
 use App\Models\Crawl\CrawlLog;
 use App\Models\Workflow\SeoTask;
 
@@ -144,19 +144,19 @@ class Page extends Model
     }
 
     /**
-     * Get the outbound internal links from this page.
+     * Outbound links from this page.
      */
     public function outboundLinks(): HasMany
     {
-        return $this->hasMany(InternalLink::class, 'from_page_id');
+        return $this->hasMany(PageLink::class, 'from_page_id');
     }
 
     /**
-     * Get the inbound internal links to this page.
+     * Inbound links to this page.
      */
     public function inboundLinks(): HasMany
     {
-        return $this->hasMany(InternalLink::class, 'to_page_id');
+        return $this->hasMany(PageLink::class, 'to_page_id');
     }
 
     /**
@@ -193,4 +193,5 @@ class Page extends Model
         // Cache this ideally, but for now live computation is fine for read-heavy views
         return $analyzer->analyze($this);
     }
+
 }

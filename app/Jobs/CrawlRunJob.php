@@ -120,12 +120,15 @@ class CrawlRunJob implements ShouldQueue
 
                     $this->logRequest($run, $page, $url, $result);
 
-                    // Parse links for discovery
-                    if ($depth < self::MAX_DEPTH && $result['content_type'] === 'text/html') {
-                        $links = $this->parseLinks($result['body'], $url, $site->domain);
-                        foreach ($links as $link) {
-                            if (!isset($visited[$link])) {
-                                $urlQueue[] = ['url' => $link, 'depth' => $depth + 1];
+                    // Process Links (Persist + Discover)
+                    if ($result['content_type'] === 'text/html') {
+                        $discoveredUrls = $this->processLinks($page, $result['body'], $url, $site->domain);
+                        
+                        if ($depth < self::MAX_DEPTH) {
+                            foreach ($discoveredUrls as $linkUrl) {
+                                if (!isset($visited[$linkUrl])) {
+                                    $urlQueue[] = ['url' => $linkUrl, 'depth' => $depth + 1];
+                                }
                             }
                         }
                     }
@@ -142,6 +145,9 @@ class CrawlRunJob implements ShouldQueue
                     ]);
                 }
             }
+
+            // Post-Crawl Resolution of Internal Links
+            $this->resolveLinks($site->id);
 
             $run->update([
                 'pages_discovered' => $pagesDiscovered,
@@ -290,10 +296,10 @@ class CrawlRunJob implements ShouldQueue
             'title' => substr($title, 0, 255), // Limit length
             'description' => substr($description, 0, 500),
             'robots' => substr($robotsMeta, 0, 255),
-            'robots_header' => substr($robotsHeader, 0, 255),
+            'robots_header' => substr((string)$robotsHeader, 0, 255),
             'canonical_extracted' => $canonical,
             'h1_count' => $h1Count,
-            'h1_first_text' => substr($h1Text, 0, 255),
+            'h1_first_text' => substr((string)$h1Text, 0, 255),
             'image_count' => $imageCount,
             'images_sample_json' => $imageSample,
         ];
@@ -390,7 +396,26 @@ class CrawlRunJob implements ShouldQueue
         ]);
     }
 
-    private function parseLinks(string $html, string $baseUrl, string $domain): array
+    /**
+     * Parse links for discovery AND persistence.
+     * Returns list of discoverable URLs for the queue.
+     */
+    private function processLinks(Page $page, string $html, string $url, string $domain): array
+    {
+        if ($page->depth_level >= self::MAX_DEPTH) {
+            return [];
+        }
+
+        $links = $this->extractLinks($html, $url, $domain);
+        
+        // Persist Internal Links
+        $this->persistLinks($page, $links);
+
+        // Return only URLs for queue (filtering visited is done by caller, but we return normalized list)
+        return array_column($links, 'url');
+    }
+
+    private function extractLinks(string $html, string $baseUrl, string $domain): array
     {
         if (empty($html)) return [];
         libxml_use_internal_errors(true);
@@ -407,14 +432,64 @@ class CrawlRunJob implements ShouldQueue
         $links = [];
         foreach ($anchors as $anchor) {
             $href = $anchor->getAttribute('href');
+            $rel = strtolower($anchor->getAttribute('rel') ?? '');
+            
             if (empty($href) || str_starts_with($href, 'javascript:') || str_starts_with($href, 'mailto:') || str_starts_with($href, 'tel:') || str_starts_with($href, '#')) continue;
+            
             $normalized = $this->normalizeUrl($href, $baseScheme, $baseHost, $basePath);
+            
             if ($normalized && $this->isSameDomain($normalized, $domain)) {
-                $links[$normalized] = true;
+                $isNofollow = str_contains($rel, 'nofollow');
+                // Key by URL to deduplicate per page
+                $links[$normalized] = [
+                    'url' => $normalized,
+                    'is_nofollow' => $isNofollow
+                ];
             }
         }
         libxml_clear_errors();
-        return array_keys($links);
+        return array_values($links);
+    }
+
+    private function persistLinks(Page $fromPage, array $links): void
+    {
+        foreach ($links as $link) {
+            // Upsert Logic manually or via upsert()
+            // Using DB::table for performance or Model
+            \App\Models\Seo\PageLink::upsert(
+                [
+                    'site_id' => $fromPage->site_id,
+                    'from_page_id' => $fromPage->id,
+                    'to_url' => $link['url'],
+                    'to_url_hash' => hash('sha256', $link['url']), // Handle Key Length
+                    'is_internal' => true,
+                    'is_nofollow' => $link['is_nofollow'],
+                    'first_seen_at' => now(),
+                    'last_seen_at' => now(),
+                ],
+                ['from_page_id', 'to_url_hash'], // Unique Key
+                ['last_seen_at'] // Update columns
+            );
+        }
+    }
+
+    /**
+     * Post-Crawl: Resolve all unlinked edges to Page IDs.
+     */
+    private function resolveLinks(int $siteId): void
+    {
+        // SQL update efficiently
+        // UPDATE page_links pl
+        // JOIN pages p ON p.site_id = pl.site_id AND p.url = pl.to_url
+        // SET pl.to_page_id = p.id
+        // WHERE pl.site_id = ? AND pl.to_page_id IS NULL
+        
+        \Illuminate\Support\Facades\DB::update("
+            UPDATE page_links pl
+            JOIN pages p ON p.site_id = pl.site_id AND p.url = pl.to_url
+            SET pl.to_page_id = p.id
+            WHERE pl.site_id = ? AND pl.to_page_id IS NULL
+        ", [$siteId]);
     }
 
     private function normalizeUrl(string $href, string $baseScheme, string $baseHost, string $basePath): ?string
@@ -423,16 +498,18 @@ class CrawlRunJob implements ShouldQueue
         if (str_starts_with($href, '//')) return $this->cleanUrl($baseScheme . ':' . $href);
         if (str_starts_with($href, '/')) return $this->cleanUrl($baseScheme . '://' . $baseHost . $href);
         $baseDir = rtrim(dirname($basePath), '/');
+        // Handle relative paths ./ and ../
+        // Simple append for now as strict relative resolution is complex, but standard browsers handle /foo/bar + baz = /foo/baz
+        if ($basePath === '/') return $this->cleanUrl($baseScheme . '://' . $baseHost . '/' . $href);
         return $this->cleanUrl($baseScheme . '://' . $baseHost . $baseDir . '/' . $href);
     }
 
     private function cleanUrl(string $url): string
     {
         $url = preg_replace('/#.*$/', '', $url);
+        $url = rtrim($url, '/'); // Normalize trailing slashes to avoid duplicates
+        // Basic re-parse to clean
         $parsed = parse_url($url);
-        if (isset($parsed['path']) && $parsed['path'] !== '/' && str_ends_with($parsed['path'], '/')) {
-            $parsed['path'] = rtrim($parsed['path'], '/');
-        }
         $scheme = $parsed['scheme'] ?? 'https';
         $host = $parsed['host'] ?? '';
         $path = $parsed['path'] ?? '/';
