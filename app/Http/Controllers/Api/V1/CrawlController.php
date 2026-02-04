@@ -25,7 +25,7 @@ class CrawlController extends Controller
         return CrawlRun::create([
             'site_id' => $siteId,
             'mode' => 'sitemap', // MVP default as per spec
-            'status' => 'running',
+            'status' => 'pending',
             'started_at' => now(),
         ]);
     }
