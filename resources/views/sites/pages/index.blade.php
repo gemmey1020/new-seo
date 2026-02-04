@@ -4,170 +4,163 @@
 <div class="sm:flex sm:items-center">
     <div class="sm:flex-auto">
         <h1 class="text-2xl font-semibold text-gray-900">Pages</h1>
-        <p class="mt-2 text-sm text-gray-700">A list of all pages discovered on this site.</p>
+        <p class="mt-2 text-sm text-gray-700">A list of all pages discovered during crawling.</p>
     </div>
-    <div class="mt-4 sm:ml-16 sm:mt-0 sm:flex-none">
-        <button onclick="importSitemap()" class="mr-2 rounded bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">Sync Sitemap</button>
-        <button onclick="createPage()" class="rounded bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">Add Page</button>
+    <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+        <select id="filter-orphan" onchange="loadPages(1)" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            <option value="0">All Pages</option>
+            <option value="1">Orphans Only</option>
+        </select>
     </div>
 </div>
 
-<div class="mt-8 flow-root">
-    <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-        <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
-            <table class="min-w-full divide-y divide-gray-300">
-                <thead>
-                    <tr>
-                        <th class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900">Path</th>
-                        <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
-                        <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Crawled</th>
-                        <th class="relative py-3.5 pl-3 pr-4 sm:pr-0">Action</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200" id="pages-table-body">
-                    <!-- JS Populated -->
-                </tbody>
-            </table>
+<div class="mt-8 flex flex-col">
+    <div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
+        <div class="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
+            <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+                <table class="min-w-full divide-y divide-gray-300">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">URL</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Content</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Structure</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Last Crawl</th>
+                            <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                                <span class="sr-only">View</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="pages-table-body" class="divide-y divide-gray-200 bg-white">
+                        <tr>
+                            <td colspan="5" class="py-4 text-center text-sm text-gray-500">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
-    <!-- Pagination -->
-    <div class="mt-4" id="pagination-controls"></div>
 </div>
+
+<div class="mt-4 flex items-center justify-between">
+    <div class="flex-1 flex justify-between sm:hidden">
+        <button onclick="changePage(-1)" id="mobile-prev" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Previous</button>
+        <button onclick="changePage(1)" id="mobile-next" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Next</button>
+    </div>
+    <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+        <div>
+            <p class="text-sm text-gray-700">
+                Showing <span class="font-medium" id="page-from">0</span> to <span class="font-medium" id="page-to">0</span> of <span class="font-medium" id="page-total">0</span> results
+            </p>
+        </div>
+        <div>
+            <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                <button onclick="changePage(-1)" id="desk-prev" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                    <span class="sr-only">Previous</span>
+                    <!-- Chevron Left -->
+                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                </button>
+                <button onclick="changePage(1)" id="desk-next" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                    <span class="sr-only">Next</span>
+                    <!-- Chevron Right -->
+                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
+                </button>
+            </nav>
+        </div>
+    </div>
+</div>
+@endsection
 
 @push('scripts')
 <script>
-    // C.3 - Toast notification system for visual feedback
-    function showToast(message, type = 'success') {
-        const toast = document.createElement('div');
-        toast.className = `fixed top-4 right-4 px-4 py-3 rounded shadow-lg z-50 transition-opacity duration-300 ${
-            type === 'success' ? 'bg-green-500 text-white' : 
-            type === 'error' ? 'bg-red-500 text-white' : 
-            'bg-blue-500 text-white'
-        }`;
-        toast.textContent = message;
-        document.body.appendChild(toast);
-        setTimeout(() => {
-            toast.style.opacity = '0';
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
-    }
+    let currentPage = 1;
+    let lastPage = 1;
 
-    async function loadPages(pageUrl = `/sites/${SITE_ID}/pages`) {
-        // Strip API_BASE if handled by api(), but pagination returns full URL. 
-        // Our api helper appends API_BASE. 
-        // So we need to handle pagination links carefully.
-        // Pagination return: "http://localhost/api/v1/sites/..."
-        // api() expects endpoint relative to v1.
-        
-        let endpoint = pageUrl;
-        if (pageUrl.includes('/api/v1')) {
-             endpoint = pageUrl.split('/api/v1')[1];
-        }
-
-        const res = await api(endpoint);
+    async function loadPages(page = 1) {
+        currentPage = page;
+        const orphan = document.getElementById('filter-orphan').value;
         const tbody = document.getElementById('pages-table-body');
         
-        if (!res.data || res.data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-gray-500">No pages found. Use "Add Page" or "Sync Sitemap" to populate.</td></tr>`;
-            document.getElementById('pagination-controls').innerHTML = '';
+        tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-sm text-gray-500">Loading...</td></tr>';
+
+        try {
+            const res = await api(`/sites/${SITE_ID}/pages?page=${page}&orphan=${orphan}`);
+            renderTable(res.data);
+            updatePagination(res);
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-sm text-red-500">Error loading pages.</td></tr>';
+        }
+    }
+
+    function renderTable(pages) {
+        const tbody = document.getElementById('pages-table-body');
+        if (pages.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-sm text-gray-500">No pages found.</td></tr>';
             return;
         }
 
-        tbody.innerHTML = res.data.map(page => `
-            <tr>
-                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">
-                    <a href="/sites/${SITE_ID}/pages/${page.id}" class="text-indigo-600 hover:text-indigo-900">${page.path}</a>
-                    <div class="text-xs text-gray-500">${page.page_type || 'General'}</div>
-                </td>
-                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                    <span class="inline-flex rounded-full bg-${page.http_status_last === 200 ? 'green' : 'red'}-100 px-2 text-xs font-semibold leading-5 text-${page.http_status_last === 200 ? 'green' : 'red'}-800">
-                        ${page.http_status_last || 'N/A'}
-                    </span>
-                </td>
-                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                    ${page.last_crawled_at ? new Date(page.last_crawled_at).toLocaleDateString() : 'Never'}
-                </td>
-                <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-0">
-                    <a href="/sites/${SITE_ID}/pages/${page.id}/meta" class="text-indigo-600 hover:text-indigo-900 mr-4">Meta</a>
-                    <a href="/sites/${SITE_ID}/pages/${page.id}" class="text-gray-600 hover:text-gray-900">Details</a>
-                </td>
-            </tr>
-        `).join('');
+        tbody.innerHTML = pages.map(page => {
+            const analysis = page.analysis || {};
+            const structure = page.structure || {};
+            const score = analysis.score ?? 0;
+            const issues = (analysis.issues || []).length;
+            const statusColor = page.http_status_last === 200 ? 'text-green-600' : 'text-red-600';
 
-        // Simple Next/Prev
-        const pag = document.getElementById('pagination-controls');
-        pag.innerHTML = `
-            <button ${!res.prev_page_url ? 'disabled' : ''} onclick="loadPages('${res.prev_page_url}')" class="px-3 py-1 border rounded disabled:opacity-50">Prev</button>
-            <span class="px-2 text-sm text-gray-600">Page ${res.current_page} of ${res.last_page}</span>
-            <button ${!res.next_page_url ? 'disabled' : ''} onclick="loadPages('${res.next_page_url}')" class="px-3 py-1 border rounded disabled:opacity-50">Next</button>
-        `;
+            return `
+                <tr>
+                    <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
+                        <div class="font-medium text-gray-900 truncate max-w-md" title="${page.url}">${page.path}</div>
+                        <div class="text-gray-500 text-xs">${page.url}</div>
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                        <div class="flex items-center gap-2">
+                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                Score: ${score}
+                             </span>
+                             <span class="${issues > 0 ? 'text-red-500 font-bold' : 'text-green-500'} text-xs">
+                                ${issues} Issues
+                             </span>
+                        </div>
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                        <div class="text-xs">
+                            Depth: <span class="font-mono">${structure.depth_from_home ?? '-'}</span>
+                            <span class="mx-1">|</span>
+                            In: ${structure.inbound_count} / Out: ${structure.outbound_count}
+                        </div>
+                        ${structure.is_orphan ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 mt-1">Orphan</span>' : ''}
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                        ${page.http_status_last ? `<span class="${statusColor} font-bold">${page.http_status_last}</span>` : '<span class="text-gray-400">Pending</span>'}
+                        <div class="text-xs text-gray-400">${page.last_crawled_at ? new Date(page.last_crawled_at).toLocaleDateString() : 'Never'}</div>
+                    </td>
+                    <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                        <a href="/sites/${SITE_ID}/pages/${page.id}" class="text-indigo-600 hover:text-indigo-900">View</a>
+                    </td>
+                </tr>
+            `;
+        }).join('');
     }
 
-    // C.1 - Sync Sitemap with visual feedback
-    async function importSitemap() {
-        if(!confirm('Import/Sync sitemaps now?')) return;
+    function updatePagination(res) {
+        lastPage = res.last_page;
+        document.getElementById('page-from').textContent = res.from || 0;
+        document.getElementById('page-to').textContent = res.to || 0;
+        document.getElementById('page-total').textContent = res.total || 0;
+
+        const prevBtn = document.getElementById('desk-prev');
+        const nextBtn = document.getElementById('desk-next');
         
-        const btn = event.target;
-        const originalText = btn.textContent;
-        btn.textContent = 'Syncing...';
-        btn.disabled = true;
-        
-        try {
-            const result = await api(`/sites/${SITE_ID}/pages/import-sitemap`, 'POST');
-            showToast('Sitemap sync initiated! Pages will appear after processing.', 'success');
-            // Reload pages after short delay to show new data
-            setTimeout(() => loadPages(), 1500);
-        } catch(e) {
-            const errorMsg = e.message || 'Error triggering import.';
-            showToast(errorMsg, 'error');
-        } finally {
-            btn.textContent = originalText;
-            btn.disabled = false;
+        prevBtn.disabled = res.current_page <= 1;
+        nextBtn.disabled = res.current_page >= res.last_page;
+    }
+
+    function changePage(delta) {
+        const newPage = currentPage + delta;
+        if (newPage >= 1 && newPage <= lastPage) {
+            loadPages(newPage);
         }
     }
 
-    // C.2 - Add Page with modal-style prompt and feedback
-    async function createPage() {
-        const path = prompt('Enter page path (e.g. /about):');
-        if(!path) return;
-        
-        // Validate path starts with /
-        if (!path.startsWith('/')) {
-            showToast('Path must start with /', 'error');
-            return;
-        }
-        
-        const btn = event.target;
-        const originalText = btn.textContent;
-        btn.textContent = 'Adding...';
-        btn.disabled = true;
-        
-        try {
-            // Build full URL from site domain
-            const siteInfo = await api(`/sites/${SITE_ID}`);
-            const fullUrl = `https://${siteInfo.domain}${path}`;
-            
-            await api(`/sites/${SITE_ID}/pages`, 'POST', {
-                url: fullUrl,
-                path: path,
-                site_id: SITE_ID,
-                page_type: 'general',
-                index_status: 'unknown',
-                depth_level: path.split('/').filter(Boolean).length
-            });
-            
-            showToast(`Page "${path}" created successfully!`, 'success');
-            loadPages();
-        } catch(e) {
-            const errorMsg = e.message || 'Failed to create page.';
-            showToast(errorMsg, 'error');
-        } finally {
-            btn.textContent = originalText;
-            btn.disabled = false;
-        }
-    }
-
-    loadPages();
+    document.addEventListener('DOMContentLoaded', () => loadPages(1));
 </script>
 @endpush
-@endsection

@@ -14,7 +14,19 @@ class PageController extends Controller
      */
     public function index(Request $request, $siteId)
     {
-        return Page::where('site_id', $siteId)->paginate(50);
+        $query = Page::where('site_id', $siteId)->orderBy('id', 'asc');
+        
+        // Filter: Orphans
+        if ($request->has('orphan') && $request->boolean('orphan')) {
+            $query->doesntHave('inboundLinks')->where('path', '!=', '/');
+        }
+
+        $pages = $query->paginate(50);
+        
+        // Append Computed Attributes for UI
+        $pages->getCollection()->each->setAppends(['analysis', 'structure']);
+        
+        return $pages;
     }
 
     /**
@@ -32,7 +44,9 @@ class PageController extends Controller
      */
     public function show($siteId, $pageId)
     {
-        return Page::where('site_id', $siteId)->findOrFail($pageId);
+        $page = Page::where('site_id', $siteId)->findOrFail($pageId);
+        $page->setAppends(['analysis', 'structure']);
+        return $page;
     }
 
     /**
