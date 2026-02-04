@@ -233,24 +233,47 @@ class HealthService
 
     private function calcStructure(Site $site): array
     {
-        // Increased Weight: 0.2
+        // EXP-003: Structure & Authority (Real Implementation Phase H)
         $totalPages = Page::where('site_id', $site->id)->where('path', '!=', '/')->count();
-        if ($totalPages === 0) return ['score' => 100, 'weight' => 0.2, 'metrics' => ['orphan_rate' => 0]];
+        if ($totalPages === 0) return ['score' => 100, 'weight' => 0.2, 'metrics' => ['orphan_rate' => 0, 'avg_depth' => 0]];
 
-        // Orphans (No Inbound)
+        // 1. Orphan Rate
+        // An orphan is a non-homepage page with NO inbound internal links.
         $orphans = Page::where('site_id', $site->id)
             ->where('path', '!=', '/')
             ->doesntHave('inboundLinks')
             ->count();
         
-        $rate = $orphans / $totalPages;
-        $score = max(0, 100 - ($rate * 100));
+        $orphanRate = $orphans / $totalPages;
+        
+        // 2. Average Depth (Site-Scoped BFS)
+        // We use the Analyzer's cache map for efficiency
+        $analyzer = new \App\Services\Analysis\PageStructureAnalyzer();
+        $depthMap = $analyzer->getSiteDepthMap($site->id);
+        
+        // Compute average of reachable pages
+        $reachableCount = count($depthMap);
+        $totalDepth = array_sum($depthMap);
+        $avgDepth = $reachableCount > 0 ? $totalDepth / $reachableCount : 0;
 
+        // Score Calculation
+        // - Heavy penalty for Orphans (100% orphans = 0 score)
+        // - Slight penalty for extreme depth (> 4) - simplified for now
+        
+        // Base Score starts at 100
+        // Deduct 100 points * orphanRate (e.g. 50% orphans = -50 points)
+        $score = 100 - ($orphanRate * 100);
+        
+        // Depth Bonus/Penalty? For now just track it. 
+        // Ideally depth < 3 is good.
+        
         return [
-            'score' => round($score),
-            'weight' => 0.2,
+            'score' => round(max(0, $score)),
+            'weight' => 0.2, // Increased from 0.1? No, sticking to 0.2 as per previous
             'metrics' => [
-                'orphan_rate' => round($rate, 2)
+                'orphan_rate' => round($orphanRate, 2),
+                'avg_depth' => round($avgDepth, 2),
+                'reachable_pages' => $reachableCount
             ]
         ];
     }

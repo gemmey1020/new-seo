@@ -144,6 +144,17 @@ class Page extends Model
     }
 
     /**
+     * Get the on-the-fly structure analysis of the page.
+     * 
+     * @return array
+     */
+    public function getStructureAttribute(): array
+    {
+        $analyzer = new \App\Services\Analysis\PageStructureAnalyzer();
+        return $analyzer->analyze($this);
+    }
+
+    /**
      * Outbound links from this page.
      */
     public function outboundLinks(): HasMany
