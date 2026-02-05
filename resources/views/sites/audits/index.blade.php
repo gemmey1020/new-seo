@@ -11,6 +11,25 @@
     </div>
 </div>
 
+<!-- Severity Filter Buttons -->
+<div class="mt-4 flex gap-2">
+    <button onclick="filterAudits('all')" 
+            class="px-3 py-1 rounded text-sm bg-gray-200 text-gray-800" 
+            data-filter="all" id="filter-all">
+        All
+    </button>
+    <button onclick="filterAudits('urgent')" 
+            class="px-3 py-1 rounded text-sm bg-white border border-gray-300" 
+            data-filter="urgent" id="filter-urgent">
+        Urgent Only
+    </button>
+    <button onclick="filterAudits('recommended')" 
+            class="px-3 py-1 rounded text-sm bg-white border border-gray-300" 
+            data-filter="recommended" id="filter-recommended">
+        Recommended
+    </button>
+</div>
+
 <div class="mt-8 flow-root">
     <table class="min-w-full divide-y divide-gray-300">
         <thead>
@@ -55,25 +74,37 @@
             return;
         }
         
-        tbody.innerHTML = res.data.map(audit => `
-            <tr>
+        // Translate severity labels
+        const severityConfig = {
+            'critical': { label: 'Urgent', color: 'bg-red-100 text-red-800', meaning: 'Blocks search engine indexing' },
+            'high': { label: 'Important', color: 'bg-orange-100 text-orange-800', meaning: 'Significantly affects SEO performance' },
+            'warning': { label: 'Recommended', color: 'bg-yellow-100 text-yellow-800', meaning: 'Best practice improvement' },
+            'optimization': { label: 'Optional', color: 'bg-blue-100 text-blue-800', meaning: 'Nice-to-have enhancement' }
+        };
+        
+        const config = severityConfig[audit.severity.toLowerCase()] || severityConfig['warning'];
+        
+        tbody.innerHTML = res.data.map(audit => {
+            const config = severityConfig[audit.severity.toLowerCase()] || severityConfig['warning'];
+            const severityUpper = audit.severity.toUpperCase();
+            
+            return `
+            <tr data-severity="${severityUpper}">
                 <td class="whitespace-nowrap py-4 pl-4 px-3 text-sm">
-                    <span class="inline-flex rounded-full px-2 text-xs font-semibold uppercase ${
-                        audit.severity === 'critical' ? 'bg-red-100 text-red-800' : 
-                        audit.severity === 'warning' ? 'bg-yellow-100 text-yellow-800' : 
-                        'bg-blue-100 text-blue-800'
-                    }">
-                        ${audit.severity}
+                    <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${config.color}">
+                        ${config.label}
                     </span>
+                    <div class="text-xs text-gray-400 mt-1">${config.meaning}</div>
                 </td>
-                <td class="px-3 py-4 text-sm text-gray-500">${audit.description || 'No description'}</td>
+                <td class="px-3 py-4 text-sm text-gray-700">${audit.description || 'Issue detected'}</td>
                 <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 capitalize">${audit.status}</td>
                 <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">${new Date(audit.detected_at).toLocaleDateString()}</td>
                 <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                     ${audit.status === 'open' ? `<button onclick="markFixed(${audit.id})" class="text-indigo-600 hover:text-indigo-900">Mark Fixed</button>` : '<span class="text-green-600">✓ Fixed</span>'}
                 </td>
             </tr>
-        `).join('');
+            `;
+        }).join('');
     }
 
     // D.2 - Run Audit with feedback
@@ -96,6 +127,35 @@
             btn.textContent = originalText;
             btn.disabled = false;
         }
+    }
+
+    // PR2: Severity filter function
+    function filterAudits(filter) {
+        const rows = document.querySelectorAll('#audits-table tr[data-severity]');
+        const buttons = document.querySelectorAll('[data-filter]');
+        
+        // Update button states
+        buttons.forEach(btn => {
+            if (btn.dataset.filter === filter) {
+                btn.className = 'px-3 py-1 rounded text-sm bg-gray-200 text-gray-800';
+            } else {
+                btn.className = 'px-3 py-1 rounded text-sm bg-white border border-gray-300';
+            }
+        });
+        
+        // Filter rows
+        rows.forEach(row => {
+            const severity = row.dataset.severity;
+            if (filter === 'all') {
+                row.style.display = '';
+            } else if (filter === 'urgent' && ['CRITICAL', 'HIGH'].includes(severity)) {
+                row.style.display = '';
+            } else if (filter === 'recommended' && severity === 'WARNING') {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
     }
 
     // D.2 - Mark Fixed with feedback

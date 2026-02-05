@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Seo\Page;
 use App\Models\Site\Site;
+use App\Services\Policy\PolicyEvaluator;
 
 class PageController extends Controller
 {
@@ -25,6 +26,18 @@ class PageController extends Controller
         
         // Append Computed Attributes for UI
         $pages->getCollection()->each->setAppends(['analysis', 'structure']);
+
+        // Policy Decoration (Passive Visibility)
+        if ($request->input('include_policy', 1)) {
+            $evaluator = new PolicyEvaluator();
+            $pages->getCollection()->transform(function ($page) use ($evaluator) {
+                $policy = $evaluator->evaluate($page);
+                $page->setAttribute('policy_summary', $policy['policy_summary']);
+                $page->setAttribute('violations_count', $policy['policy_summary']['violations_count'] ?? count($policy['violations'] ?? []));
+                $page->setAttribute('violations_preview', array_slice($policy['violations'] ?? [], 0, 3));
+                return $page;
+            });
+        }
         
         return $pages;
     }
@@ -46,6 +59,14 @@ class PageController extends Controller
     {
         $page = Page::where('site_id', $siteId)->findOrFail($pageId);
         $page->setAppends(['analysis', 'structure']);
+
+        // Policy Decoration (Passive Visibility - Full Inspector)
+        $evaluator = new PolicyEvaluator();
+        $policy = $evaluator->evaluate($page);
+        $page->setAttribute('policy_summary', $policy['policy_summary']);
+        $page->setAttribute('violations', $policy['violations']);
+        $page->setAttribute('violations_count', $policy['policy_summary']['violations_count'] ?? count($policy['violations']));
+
         return $page;
     }
 

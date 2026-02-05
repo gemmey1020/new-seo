@@ -7,15 +7,11 @@
         <button id="run-diagnostics-btn" onclick="runDiagnostics()" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
             Run Diagnostics
         </button>
-        <!-- Health Score Badge (v1.1) -->
-        <div id="health-score-container" class="hidden flex items-center gap-2">
-            <span class="text-xs text-gray-500 uppercase tracking-wider">Health Score</span>
-            <div id="health-score-badge" class="flex items-center justify-center rounded-full bg-gray-200 px-4 py-1 text-lg font-bold shadow-sm">
-                --
-            </div>
-            <div id="health-grade-badge" class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-600 text-sm font-bold text-white shadow-sm">
-                -
-            </div>
+        <!-- Site Status (Policy-First UI) -->
+        <div id="site-status-container" class="flex items-center gap-3">
+            <span class="text-sm text-gray-500">Site Status:</span>
+            <span id="site-status-badge"></span>
+            <p id="site-status-message" class="text-sm text-gray-700"></p>
         </div>
     </div>
 </div>
@@ -36,7 +32,7 @@
     <!-- 2. Drift Monitor (v1.1) -->
     <div class="rounded-lg bg-white shadow">
          <div class="border-b border-gray-200 px-4 py-4 sm:px-6 flex justify-between items-center">
-            <h3 class="text-base font-semibold leading-6 text-gray-900">Drift Monitor</h3>
+            <h3 class="text-base font-semibold leading-6 text-gray-900">System Stability</h3>
             <span id="drift-status-badge" class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">Checking...</span>
         </div>
         <div class="px-4 py-5 sm:p-6" id="drift-container">
@@ -95,7 +91,8 @@
         renderCrawl(crawlRuns);
         
         // Setup initial state for diagnostics
-        document.getElementById('health-score-container').classList.add('hidden');
+        document.getElementById('site-status-badge').innerHTML = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Pending</span>';
+        document.getElementById('site-status-message').textContent = 'Run diagnostics to check your site.';
         document.getElementById('drift-status-badge').innerHTML = '<span class="text-gray-400">Waiting...</span>';
         document.getElementById('dimensions-container').innerHTML = '<div class="text-sm text-gray-500 italic">Run diagnostics to view health data.</div>';
         document.getElementById('readiness-container').innerHTML = '<div class="text-sm text-gray-500 italic">Run diagnostics to view authority status.</div>';
@@ -124,62 +121,69 @@
     }
 
     function renderHealth(data) {
-        // Badge
-        document.getElementById('health-score-container').classList.remove('hidden');
-        const scoreBadge = document.getElementById('health-score-badge');
-        const gradeBadge = document.getElementById('health-grade-badge');
+        // Site Status Badge (Policy-First UI)
+        const statusBadge = document.getElementById('site-status-badge');
+        const statusMessage = document.getElementById('site-status-message');
         
-        scoreBadge.textContent = data.score;
-        gradeBadge.textContent = data.grade;
-
-        // Color Logic
-        let colorClass = 'bg-red-100 text-red-800';
-        if(data.score >= 90) colorClass = 'bg-green-100 text-green-800';
-        else if(data.score >= 70) colorClass = 'bg-yellow-100 text-yellow-800';
+        // Determine status based on score thresholds
+        let status, message, badgeClass;
+        if(data.score >= 80) {
+            status = 'Healthy';
+            message = 'Your site looks good';
+            badgeClass = 'bg-green-100 text-green-800';
+        } else if(data.score >= 60) {
+            status = 'Could Be Better';
+            message = 'Some pages could be improved';
+            badgeClass = 'bg-yellow-100 text-yellow-800';
+        } else {
+            status = 'Needs Attention';
+            message = 'Several pages need attention';
+            badgeClass = 'bg-orange-100 text-orange-800'; // ORANGE, not red
+        }
         
-        scoreBadge.className = `flex items-center justify-center rounded-full px-4 py-1 text-lg font-bold shadow-sm ${colorClass}`;
+        statusBadge.innerHTML = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badgeClass}">${status}</span>`;
+        statusMessage.textContent = message;
 
-        // Dimensions breakdown (v1.2 Enhanced)
+        // Dimensions breakdown - Human-friendly summaries with progressive disclosure
         const dim = data.dimensions;
         
-        // History Bars
-        let historyHtml = '';
-        if (data.history && data.history.length) {
-            historyHtml = `<div class="mt-4 pt-4 border-t border-gray-100"><div class="text-xs text-gray-400 mb-1">Stability Trend (Last 5 Runs)</div><div class="flex items-end gap-1 h-8">`;
-            data.history.reverse().forEach(run => {
-                let h = Math.max(10, (run.score / 100) * 32); 
-                let col = run.score >= 70 ? 'bg-green-300' : 'bg-red-300';
-                historyHtml += `<div class="w-4 ${col} rounded-t" style="height:${h}px" title="${new Date(run.date).toLocaleDateString()}: ${run.score}"></div>`;
-            });
-            historyHtml += `</div></div>`;
-        }
+        // Human-readable dimension summaries
+        const contentSummary = dim.content.score >= 70 
+            ? `${(dim.content.metrics.meta_density * 100).toFixed(0)}% of pages have proper metadata` 
+            : 'Several pages are missing important metadata';
+            
+        const stabilitySummary = dim.stability.score >= 70
+            ? 'Pages are responding correctly'
+            : 'Some pages returned errors during crawling';
+            
+        const structureSummary = dim.structure.metrics.orphan_rate > 0.1
+            ? `${(dim.structure.metrics.orphan_rate * 100).toFixed(0)}% of pages are not linked internally`
+            : 'Internal linking looks good';
 
         document.getElementById('dimensions-container').innerHTML = `
-            <div class="grid grid-cols-2 gap-4">
-                <div class="p-3 bg-gray-50 rounded border border-gray-100">
-                    <div class="text-xs text-gray-500 uppercase">Stability</div>
-                    <div class="text-xl font-bold ${dim.stability.score < 70 ? 'text-red-600' : 'text-gray-900'}">${dim.stability.score}</div>
-                    <div class="text-xs text-gray-400">Success: ${(dim.stability.metrics.success_rate * 100).toFixed(0)}%</div>
-                    <div class="text-xs text-gray-400">Latency: ${dim.stability.metrics.latency_avg_ms}ms</div>
+            <div class="space-y-3">
+                <div class="p-3 bg-gray-50 rounded">
+                    <h4 class="font-medium text-gray-900">Content Quality</h4>
+                    <p class="text-sm text-gray-600 mt-1">${contentSummary}</p>
                 </div>
-                <div class="p-3 bg-gray-50 rounded border border-gray-100">
-                    <div class="text-xs text-gray-500 uppercase">Compliance</div>
-                    <div class="text-xl font-bold ${dim.compliance.score < 70 ? 'text-red-600' : 'text-gray-900'}">${dim.compliance.score}</div>
-                    <div class="text-xs text-gray-400">Critical: ${dim.compliance.metrics.critical_audits}</div>
+                <div class="p-3 bg-gray-50 rounded">
+                    <h4 class="font-medium text-gray-900">Technical Accessibility</h4>
+                    <p class="text-sm text-gray-600 mt-1">${stabilitySummary}</p>
                 </div>
-                <div class="p-3 bg-gray-50 rounded border border-gray-100">
-                    <div class="text-xs text-gray-500 uppercase">Content</div>
-                    <div class="text-xl font-bold ${dim.content.score < 70 ? 'text-red-600' : 'text-gray-900'}">${dim.content.score}</div>
-                    <div class="text-xs text-gray-400">Meta: ${(dim.content.metrics.meta_density * 100).toFixed(0)}%</div>
-                    <div class="text-xs text-gray-400">H1: ${(dim.content.metrics.h1_density * 100).toFixed(0)}%</div>
+                <div class="p-3 bg-gray-50 rounded">
+                    <h4 class="font-medium text-gray-900">Site Structure</h4>
+                    <p class="text-sm text-gray-600 mt-1">${structureSummary}</p>
                 </div>
-                <div class="p-3 bg-gray-50 rounded border border-gray-100">
-                    <div class="text-xs text-gray-500 uppercase">Structure</div>
-                    <div class="text-xl font-bold ${dim.structure.score < 70 ? 'text-red-600' : 'text-gray-900'}">${dim.structure.score}</div>
-                    <div class="text-xs text-gray-400">Orphans: ${(dim.structure.metrics.orphan_rate * 100).toFixed(0)}%</div>
-                </div>
+                <details class="mt-4">
+                    <summary class="cursor-pointer text-xs text-gray-500 hover:text-gray-700">Show technical metrics</summary>
+                    <div class="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-600">
+                        <div><strong>Content Score:</strong> ${dim.content.score}</div>
+                        <div><strong>Stability Score:</strong> ${dim.stability.score}</div>
+                        <div><strong>Structure Score:</strong> ${dim.structure.score}</div>
+                        <div><strong>Success Rate:</strong> ${(dim.stability.metrics.success_rate * 100).toFixed(0)}%</div>
+                    </div>
+                </details>
             </div>
-            ${historyHtml}
             <div class="text-right text-xs text-gray-400 pt-2">Generated: ${new Date(data.generated_at).toLocaleTimeString()}</div>
         `;
     }
@@ -213,21 +217,23 @@
         document.getElementById('drift-container').innerHTML = `
             <dl class="space-y-3">
                 <div class="flex justify-between items-center">
-                    <dt class="text-sm font-medium text-gray-500">Ghost Pages (404s)</dt>
-                    <dd class="text-sm font-bold ${inds.ghost.severity === 'CRITICAL' ? 'text-red-600' : 'text-gray-900'}">
+                    <dt class="text-sm font-medium text-gray-500">Pages Returning Errors</dt>
+                    <dd class="text-xs text-gray-400">HTTP 404 or other error codes</dd>
+                    <dd class="text-sm font-bold ${inds.ghost.severity === 'CRITICAL' ? 'text-orange-600' : 'text-gray-900'}">
                         ${inds.ghost.count}
                     </dd>
                 </div>
                 ${stateDriftHtml}
                  <div class="flex justify-between items-center">
-                    <dt class="text-sm font-medium text-gray-500">Zombie Pages (Orphans)</dt>
+                    <dt class="text-sm font-medium text-gray-500">Pages Not Linked Internally</dt>
+                    <dd class="text-xs text-gray-400">No inbound links from other pages</dd>
                     <dd class="text-sm font-bold ${inds.zombie.severity === 'WARNING' ? 'text-yellow-600' : 'text-gray-900'}">
                         ${inds.zombie.count}
                     </dd>
                 </div>
             </dl>
-            <div class="mt-4 p-2 bg-blue-50 text-blue-800 text-xs rounded">
-                <strong>Drift:</strong> The gap between your Sitemap (Intent) and Reality (Crawl).
+            <div class="mt-4 p-2 bg-blue-50 border-l-4 border-blue-400 text-blue-800 text-xs rounded">
+                <strong>Why this matters:</strong> These gaps between expected and actual site structure can affect search engine discovery.
             </div>
         `;
     }
@@ -243,19 +249,16 @@
                 </div>
             `;
         } else {
-             const blockers = data.blockers.map(b => `<li class="text-red-700">${b}</li>`).join('');
              container.innerHTML = `
-                <div class="bg-red-50 border-l-4 border-red-400 p-4">
+                <div class="bg-blue-50 border-l-4 border-blue-400 p-4">
                     <div class="flex">
                         <div class="flex-shrink-0">
-                             <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+                             <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
                         </div>
                         <div class="ml-3">
-                            <h3 class="text-sm font-medium text-red-800">Not Ready for v2</h3>
-                            <div class="mt-2 text-sm text-red-700">
-                                <ul class="list-disc pl-5 space-y-1">
-                                    ${blockers}
-                                </ul>
+                            <h3 class="text-sm font-medium text-blue-800">Observation Mode Active</h3>
+                            <div class="mt-2 text-sm text-blue-700">
+                                <p>Policy evaluation is running in read-only mode. Continue building confidence in the data before enabling authority features.</p>
                             </div>
                         </div>
                     </div>

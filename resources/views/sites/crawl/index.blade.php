@@ -55,11 +55,18 @@
         tbody.innerHTML = runs.map(run => {
             const statusColors = {
                 'completed': 'bg-green-100 text-green-800',
-                'failed': 'bg-red-100 text-red-800',
+                'failed': 'bg-orange-100 text-orange-800', // Orange, not red
                 'running': 'bg-blue-100 text-blue-800',
                 'pending': 'bg-gray-100 text-gray-800'
             };
+            const statusTooltips = {
+                'completed': 'Crawl finished successfully',
+                'failed': 'Crawl encountered errors',
+                'running': 'Crawl in progress',
+                'pending': 'Crawl queued for execution'
+            };
             const badgeClass = statusColors[run.status] || 'bg-gray-100 text-gray-800';
+            const tooltip = statusTooltips[run.status] || run.status;
 
             return `
                 <tr>
@@ -68,15 +75,16 @@
                         <div class="text-xs text-gray-500 uppercase">${run.mode}</div>
                     </td>
                     <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badgeClass}">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badgeClass}"
+                              title="${tooltip}">
                             ${run.status}
                         </span>
-                        ${run.error_message ? `<div class="text-xs text-red-500 mt-1 max-w-xs truncate" title="${run.error_message}">${run.error_message}</div>` : ''}
+                        ${run.error_message ? `<div class="text-xs text-gray-500 mt-1 max-w-xs truncate" title="${run.error_message}">Reason: ${run.error_message}</div>` : ''}
                     </td>
                     <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                         <div>Discovered: ${run.pages_discovered}</div>
                         <div>Crawled: ${run.pages_crawled}</div>
-                        ${run.errors_count > 0 ? `<div class="text-red-500">Errors: ${run.errors_count}</div>` : ''}
+                        ${run.errors_count > 0 ? `<div class="text-orange-600 text-xs">${run.errors_count} ${run.errors_count === 1 ? 'page' : 'pages'} returned errors during crawl</div>` : ''}
                     </td>
                     <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                         ${new Date(run.created_at).toLocaleString()}
