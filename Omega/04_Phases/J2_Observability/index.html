@@ -1,0 +1,869 @@
+<!doctype html>
+<html lang="en" dir="ltr" data-omega-root data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ω OMEGA HUD — PHASE_J2_MASTER_INDEX</title>
+  <meta name="description" content="Omega HUD HTML rendering of PHASE_J2_MASTER_INDEX.md (Zero-Loss: raw markdown preserved + rendered view)." />
+
+  <style>
+    :root{
+      /* Accounting-lean + Omega HUD (calm, ledger-ish) */
+      --bg0:#070A0F;
+      --bg1:#0B1220;
+      --panel:#0F172A;
+      --panel2:#0B1324;
+      --text:#EAF1FB;
+      --muted:#A8B4C8;
+      --dim:#7F8DA6;
+      --line:rgba(255,255,255,.10);
+      --line2:rgba(255,255,255,.06);
+
+      --accent:#36D6D6;     /* teal */
+      --accent2:#6FE7B8;    /* soft green */
+      --warn:#F7C948;
+      --bad:#FF5A6A;
+
+      --radius:18px;
+      --radius2:24px;
+      --shadow: 0 14px 46px rgba(0,0,0,.50);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif;
+
+      --grid: linear-gradient(to right, rgba(255,255,255,.045) 1px, transparent 1px),
+              linear-gradient(to bottom, rgba(255,255,255,.045) 1px, transparent 1px);
+      --gridSize: 40px;
+      --anim: 180ms cubic-bezier(.2,.8,.2,1);
+      --max: 1180px;
+    }
+
+    html[data-theme="light"]{
+      --bg0:#F6F9FF;
+      --bg1:#FFFFFF;
+      --panel:#FFFFFF;
+      --panel2:#F2F6FF;
+      --text:#0A1222;
+      --muted:#44556F;
+      --dim:#64748B;
+      --line:rgba(10,18,34,.14);
+      --line2:rgba(10,18,34,.08);
+      --shadow: 0 12px 38px rgba(10,18,34,.12);
+      --grid: linear-gradient(to right, rgba(10,18,34,.055) 1px, transparent 1px),
+              linear-gradient(to bottom, rgba(10,18,34,.055) 1px, transparent 1px);
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family:var(--sans);
+      color:var(--text);
+      background:
+        radial-gradient(900px 620px at 18% 12%, rgba(54,214,214,.16), transparent 60%),
+        radial-gradient(900px 640px at 85% 25%, rgba(111,231,184,.12), transparent 62%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+      overflow-x:hidden;
+    }
+
+    /* HUD Grid Overlay */
+    .grid{
+      position:fixed; inset:0;
+      background-image:var(--grid);
+      background-size: var(--gridSize) var(--gridSize);
+      opacity:.34;
+      pointer-events:none;
+      mask-image: radial-gradient(62% 52% at 50% 18%, black 12%, transparent 72%);
+    }
+
+    .wrap{
+      width:min(var(--max), 92vw);
+      margin: 34px auto 90px;
+      position:relative;
+    }
+
+    .topbar{
+      display:flex;
+      gap:14px;
+      align-items:center;
+      justify-content:space-between;
+      padding:14px 16px;
+      border:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+      border-radius: var(--radius2);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      position: sticky;
+      top: 12px;
+      z-index: 50;
+    }
+
+    .brand{
+      display:flex; align-items:center; gap:12px;
+      min-width: 260px;
+    }
+
+    .sig{
+      width:44px; height:44px;
+      border-radius: 16px;
+      border:1px solid var(--line);
+      background:
+        radial-gradient(circle at 30% 30%, rgba(54,214,214,.35), transparent 55%),
+        radial-gradient(circle at 70% 70%, rgba(111,231,184,.22), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.02));
+      box-shadow: 0 0 0 6px rgba(54,214,214,.06);
+      display:grid; place-items:center;
+      font-family:var(--mono);
+      letter-spacing:.08em;
+      font-weight:900;
+    }
+
+    .brand h1{
+      margin:0;
+      font-size: 14px;
+      line-height:1.1;
+      letter-spacing:.02em;
+    }
+    .brand p{
+      margin:2px 0 0;
+      font-size:12px;
+      color:var(--muted);
+      font-family: var(--mono);
+      opacity:.95;
+    }
+
+    .actions{
+      display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;
+      align-items:center;
+    }
+
+    button{
+      border:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.11), rgba(255,255,255,.03));
+      color:var(--text);
+      padding:10px 12px;
+      border-radius: 14px;
+      cursor:pointer;
+      font-weight:800;
+      letter-spacing:.01em;
+      transition: transform var(--anim), border-color var(--anim), box-shadow var(--anim);
+      font-size: 12px;
+      display:inline-flex;
+      gap:10px;
+      align-items:center;
+      user-select:none;
+    }
+    button:hover{
+      transform: translateY(-1px);
+      border-color: rgba(54,214,214,.38);
+      box-shadow: 0 0 0 4px rgba(54,214,214,.08);
+    }
+    button:active{ transform: translateY(0px) scale(.99); }
+
+    .dot{
+      width: 9px; height: 9px; border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 18px rgba(54,214,214,.35);
+    }
+    .dot.good{ background: var(--accent2); box-shadow: 0 0 18px rgba(111,231,184,.30); }
+    .dot.warn{ background: var(--warn); box-shadow: 0 0 18px rgba(247,201,72,.28); }
+
+    .hero{
+      margin-top:16px;
+      border-radius: var(--radius2);
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02));
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      position:relative;
+    }
+    .hero-inner{
+      padding: 20px 20px 18px;
+      display:grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap:16px;
+      align-items:start;
+    }
+    @media (max-width: 920px){
+      .hero-inner{ grid-template-columns: 1fr; }
+      .brand{ min-width:auto; }
+    }
+
+    .kicker{
+      font-family: var(--mono);
+      color: var(--accent);
+      letter-spacing:.16em;
+      font-size: 11px;
+      text-transform: uppercase;
+      opacity:.95;
+    }
+
+    .hero h2{
+      margin:10px 0 8px;
+      font-size: 22px;
+      line-height:1.2;
+      letter-spacing: -.01em;
+    }
+
+    .hero .sub{
+      margin:0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height:1.6;
+      max-width: 70ch;
+    }
+
+    .meta{
+      display:grid;
+      gap:10px;
+      align-content:start;
+    }
+    .pill{
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.14);
+      padding:10px 12px;
+      border-radius: 16px;
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      font-size: 13px;
+    }
+    html[data-theme="light"] .pill{ background: rgba(10,18,34,.03); }
+    .pill b{ font-family: var(--mono); font-size: 12px; opacity:.95; }
+    .pill span{ color: var(--muted); }
+
+    .section{
+      margin-top:16px;
+      border:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      border-radius: var(--radius2);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .section header{
+      padding:14px 16px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02));
+    }
+    .section header h3{
+      margin:0;
+      font-size: 13px;
+      letter-spacing:.02em;
+    }
+    .section header .tag{
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing:.12em;
+      text-transform: uppercase;
+    }
+    .content{
+      padding: 16px;
+      line-height:1.75;
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    /* Rendered content styles */
+    .render h1,.render h2,.render h3,.render h4{
+      margin: 14px 0 8px;
+      line-height: 1.25;
+    }
+    .render h1{ font-size: 18px; }
+    .render h2{ font-size: 16px; }
+    .render h3{ font-size: 14px; }
+    .render h4{ font-size: 13px; opacity:.95; }
+    .render p{ margin: 0 0 10px; color: var(--text); }
+    .render .muted{ color: var(--muted); }
+    .render code{
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 2px 6px;
+      border:1px solid var(--line2);
+      border-radius: 10px;
+      background: rgba(255,255,255,.05);
+    }
+    .render pre{
+      margin: 10px 0 12px;
+      padding: 12px;
+      border-radius: 16px;
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      overflow:auto;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.04);
+    }
+    html[data-theme="light"] .render pre{ background: rgba(10,18,34,.03); }
+    .render pre code{
+      border:0; background: transparent; padding:0;
+      white-space: pre;
+      display:block;
+    }
+    .render ul, .render ol{
+      margin: 8px 0 10px 20px;
+      color: var(--text);
+    }
+    .render li{ margin: 4px 0; color: var(--muted); }
+    .render a{
+      color: var(--accent);
+      text-decoration: none;
+      border-bottom: 1px dashed rgba(54,214,214,.35);
+    }
+    .render a:hover{ opacity:.9; }
+
+    /* Tables */
+    table{
+      width:100%;
+      border-collapse: separate;
+      border-spacing:0;
+      margin: 10px 0 14px;
+      overflow:hidden;
+      border-radius: 16px;
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.12);
+    }
+    html[data-theme="light"] table{ background: rgba(10,18,34,.03); }
+    th, td{
+      padding: 10px 10px;
+      border-bottom:1px solid var(--line2);
+      font-size: 12.5px;
+      vertical-align: top;
+    }
+    th{
+      text-align:left;
+      font-family: var(--mono);
+      letter-spacing:.06em;
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      background: rgba(255,255,255,.04);
+    }
+    tr:last-child td{ border-bottom:0; }
+
+    /* Tabs */
+    .tabs{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin: 10px 0 0;
+      padding: 0 16px 16px;
+    }
+    .tab{
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.04);
+      padding: 10px 12px;
+      border-radius: 14px;
+      cursor:pointer;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      transition: transform var(--anim), border-color var(--anim), box-shadow var(--anim);
+      user-select:none;
+    }
+    .tab:hover{ transform: translateY(-1px); border-color: rgba(54,214,214,.30); }
+    .tab.active{
+      color: var(--text);
+      border-color: rgba(54,214,214,.42);
+      box-shadow: 0 0 0 4px rgba(54,214,214,.08);
+      background: rgba(54,214,214,.08);
+    }
+
+    /* Raw markdown box */
+    .rawbox{
+      border:1px solid var(--line);
+      border-radius: var(--radius2);
+      background: rgba(0,0,0,.16);
+      padding: 14px;
+      overflow:auto;
+      max-height: 70vh;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.04);
+    }
+    html[data-theme="light"] .rawbox{ background: rgba(10,18,34,.03); }
+    .rawbox pre{
+      margin:0;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.65;
+      white-space: pre;
+      color: var(--text);
+    }
+
+    .toast{
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,.55);
+      border: 1px solid var(--line);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 14px;
+      font-family: var(--mono);
+      font-size: 12px;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      pointer-events:none;
+      transition: opacity var(--anim), transform var(--anim);
+      z-index: 999;
+      backdrop-filter: blur(10px);
+    }
+    html[data-theme="light"] .toast{
+      background: rgba(255,255,255,.80);
+      color: #0A1222;
+    }
+    .toast.show{
+      opacity:1;
+      transform: translateX(-50%) translateY(-2px);
+    }
+
+    /* Print */
+    @media print{
+      .grid, .actions, .tabs{ display:none !important; }
+      body{ background:#fff !important; }
+      .topbar, .hero, .section{ box-shadow:none !important; }
+      html[data-theme="dark"]{ --text:#000; --muted:#333; --line:rgba(0,0,0,.12); --line2:rgba(0,0,0,.08); }
+      .rawbox{ max-height:none; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="grid" aria-hidden="true"></div>
+
+  <div class="wrap" id="doc">
+    <div class="topbar">
+      <div class="brand">
+        <div class="sig">Ω</div>
+        <div>
+          <h1>OMEGA HUD • PHASE_J2_MASTER_INDEX</h1>
+          <p>Zero-Loss: Raw Markdown Preserved + Rendered View • 2026-02-05</p>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="toggleTheme" type="button"><span class="dot"></span>Toggle Theme</button>
+        <button id="copyRendered" type="button"><span class="dot good"></span>Copy Rendered</button>
+        <button id="copyRaw" type="button"><span class="dot warn"></span>Copy Raw</button>
+        <button id="print" type="button"><span class="dot"></span>Print / Save PDF</button>
+      </div>
+    </div>
+
+    <section class="hero" aria-label="Header">
+      <div class="hero-inner">
+        <div>
+          <div class="kicker">Ω / DOCUMENT TRANSFORMATION • NO CONTENT DELETION</div>
+          <h2>PHASE J.2 — Observability Enrichment<br/>Master Index (HUD View)</h2>
+          <p class="sub">
+            This HUD file includes two synchronized representations:
+            <b>Rendered View</b> for fast reading, and <b>Raw Markdown</b> for absolute preservation.
+            Nothing is removed. Nothing is rewritten. Copy-safe & print-safe.
+          </p>
+        </div>
+
+        <div class="meta">
+          <div class="pill"><b>Source</b><span>PHASE_J2_MASTER_INDEX.md</span></div>
+          <div class="pill"><b>Policy</b><span>Zero-Loss / Zero-Drift</span></div>
+          <div class="pill"><b>Mode</b><span>Read-only Artifact</span></div>
+          <div class="pill"><b>Theme</b><span>Dark/Light</span></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="tabs" role="tablist" aria-label="View Tabs">
+      <div class="tab active" id="tabRendered" role="tab" tabindex="0" aria-selected="true">Rendered View</div>
+      <div class="tab" id="tabRaw" role="tab" tabindex="0" aria-selected="false">Raw Markdown (Zero-Loss)</div>
+    </div>
+
+    <section class="section" id="viewRendered">
+      <header>
+        <h3>Rendered View</h3>
+        <div class="tag">Ω / FAST READ</div>
+      </header>
+      <div class="content render" id="renderedRoot">
+        <!-- Rendered content (manually mapped, same meaning, no omissions) -->
+        <h1>PHASE_J2_MASTER_INDEX</h1>
+
+        <p><b>Project:</b> Internal SEO Control System<br/>
+        <b>Phase:</b> J.2 — Observability Enrichment<br/>
+        <b>Index Last Updated:</b> 2026-02-05<br/>
+        <b>Status:</b> 🔒 COMPLETE &amp; FROZEN</p>
+
+        <hr style="border:0;border-top:1px solid var(--line2);margin:14px 0;" />
+
+        <h2>OVERVIEW</h2>
+        <p class="muted">
+          This index organizes all artifacts related to <b>Phase J.2: Observability Enrichment</b>,
+          which added evidence metadata to Policy Engine violations while preserving read-only,
+          non-authoritative operation.
+        </p>
+        <p><b>Total Artifacts:</b> 11 documents</p>
+
+        <h2>PHASE J.2 TIMELINE</h2>
+        <pre><code>Phase J.2.0: Design          → PHASE_J2_OBSERVABILITY_ENRICHMENT.md
+Phase J.2.1: Implementation  → PolicyRuleSet.php, PolicyEvaluator.php
+Phase J.2.1: Review          → PHASE_J2_ARCHITECTURAL_REVIEW.md
+Phase J.2.1: Freeze          → FREEZE_PHASE_J2_1_OBSERVABILITY.md
+Phase J.2.1: Audit           → AUDIT_PHASE_J2_1_OBSERVABILITY.md
+Phase J.2.2: Verification    → BROWSER_VERIFICATION_CHECKLIST_J2_2.md
+Phase J.2.2: Documentation   → OBSERVATION_MODE_GUIDE.md, DEVELOPER_GUIDE_POLICY_EVIDENCE.md
+Phase J.2.2: Snapshot        → SNAPSHOT_J2_1_SYSTEM_STATE.md
+Phase J.2.2: Completion      → PHASE_J2_2_COMPLETION_STATEMENT.md</code></pre>
+
+        <h2>ARTIFACTS BY TYPE</h2>
+
+        <h3>📋 Design &amp; Planning</h3>
+        <table>
+          <thead>
+            <tr><th>Document</th><th>Purpose</th><th>Phase</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>PHASE_J2_OBSERVABILITY_ENRICHMENT.md</code></td>
+              <td>Initial design specification</td>
+              <td>J.2.0</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>🔍 Review &amp; Audit</h3>
+        <table>
+          <thead>
+            <tr><th>Document</th><th>Purpose</th><th>Phase</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>PHASE_J2_ARCHITECTURAL_REVIEW.md</code></td>
+              <td>Formal architectural PR review</td>
+              <td>J.2.1</td>
+            </tr>
+            <tr>
+              <td><code>AUDIT_PHASE_J2_1_OBSERVABILITY.md</code></td>
+              <td>Final audit certification for deployment</td>
+              <td>J.2.1</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>🔒 Freeze Artifacts</h3>
+        <table>
+          <thead>
+            <tr><th>Document</th><th>Purpose</th><th>Phase</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>FREEZE_PHASE_J2_1_OBSERVABILITY.md</code></td>
+              <td>Official freeze declaration</td>
+              <td>J.2.1</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>✅ Verification</h3>
+        <table>
+          <thead>
+            <tr><th>Document</th><th>Purpose</th><th>Phase</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>BROWSER_VERIFICATION_CHECKLIST_J2_2.md</code></td>
+              <td><b>Actionable</b> checklist for manual UI verification</td>
+              <td>J.2.2</td>
+            </tr>
+            <tr>
+              <td><code>BROWSER_VERIFICATION_NOTES_J2_2.md</code></td>
+              <td>Observational verification notes</td>
+              <td>J.2.2</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>📚 Documentation (Living Guides)</h3>
+        <table>
+          <thead>
+            <tr><th>Document</th><th>Purpose</th><th>Phase</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>OBSERVATION_MODE_GUIDE.md</code></td>
+              <td><b>Essential</b> guide on authority boundaries</td>
+              <td>J.2.2</td>
+            </tr>
+            <tr>
+              <td><code>DEVELOPER_GUIDE_POLICY_EVIDENCE.md</code></td>
+              <td><b>Technical</b> schema and forbidden patterns</td>
+              <td>J.2.2</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>📸 System Snapshots</h3>
+        <table>
+          <thead>
+            <tr><th>Document</th><th>Purpose</th><th>Phase</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>SNAPSHOT_J2_1_SYSTEM_STATE.md</code></td>
+              <td><b>Latest</b> comprehensive system state capture</td>
+              <td>J.2.2</td>
+            </tr>
+            <tr>
+              <td><code>SNAPSHOT_J2_1_OBSERVABILITY_ENRICHMENT.md</code></td>
+              <td>Previous snapshot (Historical)</td>
+              <td>J.2.2</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>📝 Completion</h3>
+        <table>
+          <thead>
+            <tr><th>Document</th><th>Purpose</th><th>Phase</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>PHASE_J2_2_COMPLETION_STATEMENT.md</code></td>
+              <td>Official phase completion certification</td>
+              <td>J.2.2</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2>READING ORDER (FOR NEW DEVELOPERS)</h2>
+
+        <h3>1. The Rules (Must Read)</h3>
+        <ol>
+          <li><code>OBSERVATION_MODE_GUIDE.md</code> — Authority contracts &amp; rollback.</li>
+          <li><code>DEVELOPER_GUIDE_POLICY_EVIDENCE.md</code> — Schema &amp; prohibited patterns.</li>
+        </ol>
+
+        <h3>2. The Verification</h3>
+        <ol>
+          <li><code>BROWSER_VERIFICATION_CHECKLIST_J2_2.md</code> — Run this to verify the UI.</li>
+        </ol>
+
+        <h3>3. The State</h3>
+        <ol>
+          <li><code>SNAPSHOT_J2_1_SYSTEM_STATE.md</code> — What is currently deployed.</li>
+        </ol>
+
+        <hr style="border:0;border-top:1px solid var(--line2);margin:14px 0;" />
+
+        <p><b>Index Maintained By:</b> Documentation Authority<br/>
+        <b>Phase Status:</b> J.2 COMPLETE &amp; FROZEN</p>
+      </div>
+    </section>
+
+    <section class="section" id="viewRaw" style="display:none;">
+      <header>
+        <h3>Raw Markdown</h3>
+        <div class="tag">Ω / ZERO-LOSS</div>
+      </header>
+      <div class="content">
+        <div class="rawbox" aria-label="Raw Markdown Box">
+<pre id="rawMd"># PHASE_J2_MASTER_INDEX
+
+**Project:** Internal SEO Control System
+**Phase:** J.2 — Observability Enrichment
+**Index Last Updated:** 2026-02-05
+**Status:** 🔒 COMPLETE &amp; FROZEN
+
+---
+
+## OVERVIEW
+
+This index organizes all artifacts related to **Phase J.2: Observability Enrichment**, which added evidence metadata to Policy Engine violations while preserving read-only, non-authoritative operation.
+
+**Total Artifacts:** 11 documents
+
+---
+
+## PHASE J.2 TIMELINE
+
+
+
+
+
+Phase J.2.0: Design → PHASE_J2_OBSERVABILITY_ENRICHMENT.md
+Phase J.2.1: Implementation → PolicyRuleSet.php, PolicyEvaluator.php
+Phase J.2.1: Review → PHASE_J2_ARCHITECTURAL_REVIEW.md
+Phase J.2.1: Freeze → FREEZE_PHASE_J2_1_OBSERVABILITY.md
+Phase J.2.1: Audit → AUDIT_PHASE_J2_1_OBSERVABILITY.md
+Phase J.2.2: Verification → BROWSER_VERIFICATION_CHECKLIST_J2_2.md
+Phase J.2.2: Documentation → OBSERVATION_MODE_GUIDE.md, DEVELOPER_GUIDE_POLICY_EVIDENCE.md
+Phase J.2.2: Snapshot → SNAPSHOT_J2_1_SYSTEM_STATE.md
+Phase J.2.2: Completion → PHASE_J2_2_COMPLETION_STATEMENT.md
+
+
+---
+
+## ARTIFACTS BY TYPE
+
+### 📋 Design &amp; Planning
+
+| Document | Purpose | Phase |
+|:---------|:--------|:------|
+| [PHASE_J2_OBSERVABILITY_ENRICHMENT.md](PHASE_J2_OBSERVABILITY_ENRICHMENT.md) | Initial design specification | J.2.0 |
+
+### 🔍 Review &amp; Audit
+
+| Document | Purpose | Phase |
+|:---------|:--------|:------|
+| [PHASE_J2_ARCHITECTURAL_REVIEW.md](PHASE_J2_ARCHITECTURAL_REVIEW.md) | Formal architectural PR review | J.2.1 |
+| [AUDIT_PHASE_J2_1_OBSERVABILITY.md](AUDIT_PHASE_J2_1_OBSERVABILITY.md) | Final audit certification for deployment | J.2.1 |
+
+### 🔒 Freeze Artifacts
+
+| Document | Purpose | Phase |
+|:---------|:--------|:------|
+| [FREEZE_PHASE_J2_1_OBSERVABILITY.md](FREEZE_PHASE_J2_1_OBSERVABILITY.md) | Official freeze declaration | J.2.1 |
+
+### ✅ Verification
+
+| Document | Purpose | Phase |
+|:---------|:--------|:------|
+| [BROWSER_VERIFICATION_CHECKLIST_J2_2.md](BROWSER_VERIFICATION_CHECKLIST_J2_2.md) | **Actionable** checklist for manual UI verification | J.2.2 |
+| [BROWSER_VERIFICATION_NOTES_J2_2.md](BROWSER_VERIFICATION_NOTES_J2_2.md) | Observational verification notes | J.2.2 |
+
+### 📚 Documentation (Living Guides)
+
+| Document | Purpose | Phase |
+|:---------|:--------|:------|
+| [OBSERVATION_MODE_GUIDE.md](OBSERVATION_MODE_GUIDE.md) | **Essential** guide on authority boundaries | J.2.2 |
+| [DEVELOPER_GUIDE_POLICY_EVIDENCE.md](DEVELOPER_GUIDE_POLICY_EVIDENCE.md) | **Technical** schema and forbidden patterns | J.2.2 |
+
+### 📸 System Snapshots
+
+| Document | Purpose | Phase |
+|:---------|:--------|:------|
+| [SNAPSHOT_J2_1_SYSTEM_STATE.md](SNAPSHOT_J2_1_SYSTEM_STATE.md) | **Latest** comprehensive system state capture | J.2.2 |
+| [SNAPSHOT_J2_1_OBSERVABILITY_ENRICHMENT.md](SNAPSHOT_J2_1_OBSERVABILITY_ENRICHMENT.md) | Previous snapshot (Historical) | J.2.2 |
+
+### 📝 Completion
+
+| Document | Purpose | Phase |
+|:---------|:--------|:------|
+| [PHASE_J2_2_COMPLETION_STATEMENT.md](PHASE_J2_2_COMPLETION_STATEMENT.md) | Official phase completion certification | J.2.2 |
+
+---
+
+## READING ORDER (FOR NEW DEVELOPERS)
+
+### 1. The Rules (Must Read)
+
+1. **[OBSERVATION_MODE_GUIDE.md](OBSERVATION_MODE_GUIDE.md)** — Authority contracts &amp; rollback.
+2. **[DEVELOPER_GUIDE_POLICY_EVIDENCE.md](DEVELOPER_GUIDE_POLICY_EVIDENCE.md)** — Schema &amp; prohibited patterns.
+
+### 2. The Verification
+
+1. **[BROWSER_VERIFICATION_CHECKLIST_J2_2.md](BROWSER_VERIFICATION_CHECKLIST_J2_2.md)** — Run this to verify the UI.
+
+### 3. The State
+
+1. **[SNAPSHOT_J2_1_SYSTEM_STATE.md](SNAPSHOT_J2_1_SYSTEM_STATE.md)** — What is currently deployed.
+
+---
+
+**Index Maintained By:** Documentation Authority
+**Phase Status:** J.2 COMPLETE &amp; FROZEN</pre>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast">Done.</div>
+
+  <script>
+    (function(){
+      const root = document.documentElement;
+      const toast = document.getElementById('toast');
+
+      const tabRendered = document.getElementById('tabRendered');
+      const tabRaw = document.getElementById('tabRaw');
+      const viewRendered = document.getElementById('viewRendered');
+      const viewRaw = document.getElementById('viewRaw');
+
+      const btnTheme = document.getElementById('toggleTheme');
+      const btnPrint = document.getElementById('print');
+      const btnCopyRaw = document.getElementById('copyRaw');
+      const btnCopyRendered = document.getElementById('copyRendered');
+
+      function showToast(msg){
+        toast.textContent = msg || "Done.";
+        toast.classList.add('show');
+        clearTimeout(showToast._t);
+        showToast._t = setTimeout(()=> toast.classList.remove('show'), 1400);
+      }
+
+      function setActive(tab){
+        const isRendered = (tab === 'rendered');
+        tabRendered.classList.toggle('active', isRendered);
+        tabRaw.classList.toggle('active', !isRendered);
+        tabRendered.setAttribute('aria-selected', isRendered ? 'true' : 'false');
+        tabRaw.setAttribute('aria-selected', !isRendered ? 'true' : 'false');
+        viewRendered.style.display = isRendered ? '' : 'none';
+        viewRaw.style.display = isRendered ? 'none' : '';
+        showToast(isRendered ? "Rendered View" : "Raw Markdown");
+      }
+
+      tabRendered.addEventListener('click', () => setActive('rendered'));
+      tabRaw.addEventListener('click', () => setActive('raw'));
+      tabRendered.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); setActive('rendered'); }});
+      tabRaw.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); setActive('raw'); }});
+
+      // Theme persistence
+      function setTheme(next){
+        root.setAttribute('data-theme', next);
+        try { localStorage.setItem('omega_theme_docs', next); } catch(e){}
+        showToast(next === 'light' ? "Light Theme" : "Dark Theme");
+      }
+      btnTheme.addEventListener('click', () => {
+        const current = root.getAttribute('data-theme') || 'dark';
+        setTheme(current === 'dark' ? 'light' : 'dark');
+      });
+
+      try{
+        const saved = localStorage.getItem('omega_theme_docs');
+        if(saved === 'light' || saved === 'dark') root.setAttribute('data-theme', saved);
+      }catch(e){}
+
+      // Print
+      btnPrint.addEventListener('click', () => window.print());
+
+      // Copy helpers
+      async function copyText(text){
+        try{
+          await navigator.clipboard.writeText(text);
+          return true;
+        }catch(e){
+          try{
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+            return true;
+          }catch(err){
+            return false;
+          }
+        }
+      }
+
+      btnCopyRaw.addEventListener('click', async () => {
+        const raw = document.getElementById('rawMd')?.innerText || '';
+        const ok = await copyText(raw);
+        showToast(ok ? "Copied: Raw Markdown" : "Copy failed");
+      });
+
+      btnCopyRendered.addEventListener('click', async () => {
+        const rendered = document.getElementById('renderedRoot')?.innerText || '';
+        const ok = await copyText(rendered);
+        showToast(ok ? "Copied: Rendered Text" : "Copy failed");
+      });
+    })();
+  </script>
+</body>
+</html>
